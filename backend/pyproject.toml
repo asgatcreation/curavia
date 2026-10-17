@@ -1,0 +1,109 @@
+[project]
+name = "curavia-backend"
+version = "0.1.0"
+description = "Curavia — hospital and clinic operating system"
+requires-python = ">=3.13"
+
+# --------------------------------------------------------------------------
+# Ruff — linting and formatting
+# --------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = [".venv", "*/migrations/*", "staticfiles"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # import sorting
+    "UP",          # pyupgrade
+    "B",           # bugbear
+    "C4",          # comprehensions
+    "DJ",          # Django-specific
+    "S",           # bandit (security)
+    "A",           # builtin shadowing
+    "RET",         # return simplification
+    "SIM",         # simplify
+    "TID",         # tidy imports
+    "RUF",
+]
+ignore = [
+    "S101",    # assert: used deliberately in tests and boot-time invariants
+    "RUF012",  # mutable class attrs: Django and the fake providers use them
+    "B008",    # function call in default: DRF and Django idiom
+    "DJ001",   # null=True on CharField: we use it where a value is genuinely absent
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may hard-code credentials for synthetic users and use long lines in
+# parametrisation tables.
+"tests/**" = ["S105", "S106", "E501"]
+"config/settings/*" = ["F403", "F405"]  # star imports are the settings idiom
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config", "integrations"]
+
+# --------------------------------------------------------------------------
+# mypy
+# --------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+warn_unreachable = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["migrations/", "\\.venv/"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[[tool.mypy.overrides]]
+module = ["*.migrations.*", "tests.*"]
+ignore_errors = true
+
+# --------------------------------------------------------------------------
+# pytest
+# --------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+# --strict-markers so a typo in a marker is an error, not a silently skipped test.
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--reuse-db",
+]
+markers = [
+    "permissions: generated from docs/permissions-matrix.yml",
+    "isolation: deliberately attempts to cross the tenant boundary",
+    "audit: the hash-chained audit log",
+    "slow: excluded from the quick local run",
+]
+filterwarnings = [
+    "error::DeprecationWarning:apps.*",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["apps", "integrations"]
+omit = ["*/migrations/*", "*/tests/*", "config/*"]
+
+[tool.coverage.report]
+skip_covered = true
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]

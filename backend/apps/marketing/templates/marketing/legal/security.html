@@ -1,0 +1,86 @@
+{% extends "marketing/base.html" %}
+{% block description %}How Curavia keeps each hospital's records separate, what it audits, and what it encrypts.{% endblock %}
+
+{% block content %}
+<h1>Security and privacy</h1>
+<p class="lede">
+  What follows is how the system is actually built, not a list of intentions.
+  Each claim corresponds to code and to a test that would fail if it stopped
+  being true.
+</p>
+
+<h2>One hospital cannot see another's records</h2>
+<p>
+  Every row of hospital data carries the hospital it belongs to, and the database
+  layer refuses to return rows at all unless a hospital is in scope &mdash; so a
+  developer who forgets to filter gets a crash, not a silent leak. The scope is
+  derived from the signed-in staff member's own membership; it is never taken from
+  anything the browser sends, so a forged request changes nothing.
+</p>
+<p>
+  Beneath that sits PostgreSQL row-level security as a second barrier, and above it
+  a test suite whose only job is to attempt cross-hospital access &mdash; over the
+  API, over WebSockets and through background jobs. A leak is a failing build.
+</p>
+
+<h2>Staff see only what their job needs</h2>
+<p>
+  Access is decided by four independent checks: the hospital's plan, the modules it
+  has switched on, the staff member's role, and a rule about the specific record. A
+  cashier sees bills and names but no diagnosis &mdash; not hidden on screen, but
+  absent from the response. An accountant sees money and no charts at all. A nurse
+  sees her own ward. Sensitive fields, such as HIV status and psychiatric notes,
+  need a separate permission and are encrypted in the database with keys held
+  outside it.
+</p>
+<p>
+  Emergency access exists, because nobody should be locked out of a dying patient's
+  record. It requires a written reason, lasts a short time, notifies the medical
+  director immediately, and is flagged permanently in the audit log.
+</p>
+
+<h2>Every look is recorded, not just every change</h2>
+<p>
+  Opening a patient's chart writes an audit entry. This is the part that matters,
+  because the common real-world abuse is a staff member reading a record they have
+  no business reading. Each entry carries the previous entry's cryptographic hash,
+  so a deleted or altered row breaks the chain and the system reports exactly where.
+  The log cannot be updated or deleted by the application at all, and the chain's
+  tip is notarised nightly. The hospital's auditor and medical director can read it;
+  so can the hospital, about us.
+</p>
+
+<h2>Curavia cannot read your patients' records</h2>
+<p>
+  By default our own staff see hospital names, plans and system health &mdash; no
+  patient data. To help with a problem we must ask, and the hospital grants a named
+  person access for a limited period with a stated reason. Everything done under
+  that grant is written into the hospital's own audit log, where the hospital can
+  see it. When the grant expires, access ends by itself.
+</p>
+
+<h2>Your data stays yours</h2>
+<p>
+  A hospital can export everything it holds, at any time, and leave. A hospital that
+  stops paying becomes read-only; its records are never deleted without notice and
+  an export first.
+</p>
+
+<h2>Under the Nigeria Data Protection Act 2023</h2>
+<p>
+  The hospital is the data controller and Curavia is the data processor. That split
+  is set out in the
+  <a href="/legal/dpa/">Data Processing Agreement</a>, together with retention
+  settings, consent records, how patients exercise access, export and deletion
+  rights, and the process for notifying the hospital and the NDPC within 72 hours of
+  a breach.
+</p>
+
+<div class="note">
+  <strong>What this is not.</strong> Curavia is not a certified medical device. Its
+  clinical decision support &mdash; interaction, allergy, dose and duplicate-therapy
+  checks &mdash; is informational and does not replace clinical judgement. The public
+  demonstration contains synthetic data only; no real patient information is used
+  anywhere in it.
+</div>
+{% endblock %}

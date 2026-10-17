@@ -1,0 +1,52 @@
+{% extends "marketing/base.html" %}
+{% block description %}What Curavia collects, why, and the rights patients and staff have over it.{% endblock %}
+
+{% block content %}
+<h1>Privacy policy</h1>
+
+<div class="note">
+  <strong>Draft.</strong> The full policy is published at milestone 12. The
+  architecture behind these statements is described in
+  <a href="/legal/security/">Security and privacy</a>, and the controller/processor
+  split in the <a href="/legal/dpa/">Data Processing Agreement</a>.
+</div>
+
+<p class="lede">
+  The public demonstration of Curavia contains <strong>synthetic data only</strong>.
+  The patients, histories, results and bills in it are invented. No real patient
+  information is used anywhere in the demonstration, the repository or the tests.
+</p>
+
+<h2>Patient records</h2>
+<p>
+  When a hospital uses Curavia, the records in it belong to that hospital and are
+  processed on its instructions. Patients exercise their rights &mdash; to see their
+  record, to get a copy of it, to correct it, to ask for deletion &mdash; through the
+  hospital, and the patient portal raises those requests directly, with a deadline
+  the hospital can see.
+</p>
+
+<h2>What we collect about staff and visitors</h2>
+<p>
+  For staff accounts: name, work email, phone, role and branch, plus the security
+  record needed to keep the account safe &mdash; sign-in times, the device list, and
+  the audit log of what was opened and changed. For visitors to this site: the
+  minimum needed to serve the page and keep it available. We choose the most
+  privacy-preserving option available to us and ask for nothing we do not need.
+</p>
+
+<h2>Where data is held</h2>
+<p>
+  Records are held in a managed PostgreSQL database and, for files such as results
+  and scans, in private object storage reachable only through short-lived signed
+  links. There is no public URL for a medical file. Sensitive fields are encrypted
+  in the database with keys held outside it.
+</p>
+
+<h2>Contact</h2>
+<p>
+  Questions about this policy, or about data a hospital holds in Curavia, go to the
+  hospital first as data controller. For questions about Curavia itself, contact
+  <a href="https://github.com/asgatcreation">@asgatcreation</a>.
+</p>
+{% endblock %}

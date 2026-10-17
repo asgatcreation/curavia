@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens.
+ *
+ * Milestone 2 ships only enough to render a legible shell. The real visual
+ * direction - the patient banner, status colours chosen to be colour-blind
+ * safe, tablet touch targets - is milestone 3, which is a sign-off point.
+ */
+@theme {
+  --color-brand-50: oklch(0.97 0.02 180);
+  --color-brand-500: oklch(0.55 0.11 180);
+  --color-brand-600: oklch(0.48 0.1 180);
+  --color-brand-700: oklch(0.41 0.09 180);
+
+  /* Status colours are distinguishable without relying on hue alone. */
+  --color-critical: oklch(0.55 0.21 25);
+  --color-warning: oklch(0.72 0.16 70);
+  --color-stable: oklch(0.6 0.13 155);
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  }
+  /* Keyboard users are the heavy users here: clerks and doctors work by keys. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+}

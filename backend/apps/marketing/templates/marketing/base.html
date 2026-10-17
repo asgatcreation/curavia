@@ -1,0 +1,92 @@
+{% load static %}<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title|default:"Curavia" }}</title>
+<meta name="description" content="{% block description %}Curavia is one system for your whole hospital: front desk, triage, consultation, laboratory, pharmacy, cashier and wards, handing patients to each other in real time.{% endblock %}">
+<meta name="theme-color" content="#0f766e">
+{# Milestone 2 ships a deliberately plain shell. The real visual direction is
+   milestone 3, where Tailwind is wired in properly rather than from a CDN. #}
+<style>
+  :root{
+    --bg:#f8fafc; --surface:#ffffff; --border:#e2e8f0;
+    --text:#0f172a; --muted:#475569; --accent:#0f766e; --accent-ink:#ffffff;
+    --radius:10px; --max:68rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1220; --surface:#111a2b; --border:#1f2a3d;
+      --text:#e8eef7; --muted:#9aa8bd; --accent:#2dd4bf; --accent-ink:#06211f;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1220; --surface:#111a2b; --border:#1f2a3d;
+    --text:#e8eef7; --muted:#9aa8bd; --accent:#2dd4bf; --accent-ink:#06211f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:var(--max); margin:0 auto; padding:0 16px}
+  header.site{border-bottom:1px solid var(--border); background:var(--surface)}
+  header.site .wrap{display:flex; align-items:center; justify-content:space-between;
+    gap:16px; min-height:64px; flex-wrap:wrap}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700;
+    letter-spacing:-.01em; text-decoration:none; color:var(--text)}
+  .mark{width:28px;height:28px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;color:var(--accent-ink);font-weight:800;font-size:15px}
+  nav a{color:var(--muted); text-decoration:none; margin-left:18px; font-size:.94rem}
+  nav a:hover,nav a:focus{color:var(--text); text-decoration:underline}
+  main{padding:40px 0 64px}
+  h1{font-size:clamp(1.8rem,4.5vw,2.75rem); line-height:1.15; letter-spacing:-.02em; margin:0 0 14px}
+  h2{font-size:1.25rem; margin:36px 0 10px; letter-spacing:-.01em}
+  p{color:var(--muted); max-width:62ch}
+  .lede{font-size:1.1rem}
+  .grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); margin:20px 0}
+  .card{background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius); padding:14px}
+  .card h3{margin:0 0 4px; font-size:.95rem}
+  .card p{margin:0; font-size:.86rem}
+  .note{background:var(--surface); border:1px solid var(--border);
+    border-left:3px solid var(--accent); border-radius:var(--radius); padding:14px 16px; margin:28px 0}
+  footer.site{border-top:1px solid var(--border); padding:24px 0; color:var(--muted); font-size:.88rem}
+  footer.site a{color:var(--muted)}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .skip{position:absolute;left:-9999px}
+  .skip:focus{left:8px;top:8px;background:var(--surface);padding:8px 12px;border-radius:8px;z-index:10}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">C</span> Curavia</a>
+    <nav aria-label="Main">
+      <a href="/legal/security/">Security</a>
+      <a href="/legal/privacy/">Privacy</a>
+      <a href="/api/docs/">API</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main"><div class="wrap">{% block content %}{% endblock %}</div></main>
+
+<footer class="site"><div class="wrap">
+  <p style="margin:0 0 6px">
+    <strong>Synthetic demonstration data only.</strong> Curavia is not a certified
+    medical device, and its clinical decision support is informational — it does not
+    replace clinical judgement.
+  </p>
+  <p style="margin:0">
+    &copy; {% now "Y" %} Akanji Oluwaseun Gabriel ·
+    <a href="/legal/terms/">Terms</a> ·
+    <a href="/legal/privacy/">Privacy</a> ·
+    <a href="/legal/dpa/">Data Processing Agreement</a>
+  </p>
+</div></footer>
+</body>
+</html>

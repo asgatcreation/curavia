@@ -1,0 +1,50 @@
+{% extends "marketing/base.html" %}
+
+{% block content %}
+<h1>One system for your whole hospital.</h1>
+<p class="lede">
+  Front desk, triage, consultation, laboratory, radiology, pharmacy, cashier and
+  wards &mdash; every department in one place, handing patients to each other as it
+  happens. When a doctor prescribes, the pharmacist on seat sees it instantly, with
+  allergies, interactions and stock already checked.
+</p>
+
+<div class="note">
+  <strong>This is a development build.</strong> Milestone 2 of the build plan ships the
+  foundations: multi-hospital tenancy, staff accounts with mandatory two-factor
+  authentication, roles and object-level permissions, and a hash-chained audit log.
+  The marketing site and the hospital screens are built out in later milestones.
+</div>
+
+<h2>Modules</h2>
+<p>Switched on per hospital, so a solo clinic is never shown ward and theatre screens it will never use.</p>
+<div class="grid">
+  {% for module in modules %}
+  <div class="card">
+    <h3>{{ module.label }}</h3>
+    <p>{{ module.description }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Built for Nigerian practice</h2>
+<p>
+  Prices in naira, stored as whole kobo so nothing is ever lost to rounding.
+  NAFDAC numbers, batches and expiry dates on every medicine. HMO and NHIA tariffs,
+  pre-authorisation codes and claim batches. The national immunisation schedule.
+  Times in West Africa Time. Verification against CAC registration, a state Ministry
+  of Health facility licence and the medical director's MDCN number before a hospital
+  goes live.
+</p>
+
+<h2>Privacy by construction</h2>
+<p>
+  Each hospital's records are unreachable from any other, enforced in the database and
+  proved by a test suite that deliberately attempts to cross the boundary. Every view
+  and every change of a patient record is written to an append-only, hash-chained audit
+  log. Curavia's own staff cannot open a hospital's records at all unless that hospital
+  grants time-limited access &mdash; and everything done under that grant is recorded
+  where the hospital can see it.
+</p>
+<p><a href="/legal/security/">Read how it works &rarr;</a></p>
+{% endblock %}

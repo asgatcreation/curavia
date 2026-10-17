@@ -1,0 +1,59 @@
+{% extends "marketing/base.html" %}
+{% block description %}The split of responsibilities between a hospital using Curavia and Curavia itself, under the Nigeria Data Protection Act 2023.{% endblock %}
+
+{% block content %}
+<h1>Data Processing Agreement</h1>
+<p class="lede">
+  Under the Nigeria Data Protection Act 2023, the hospital is the <strong>data
+  controller</strong> and Curavia is the <strong>data processor</strong>. This page
+  sets out what that means in practice.
+</p>
+
+<div class="note">
+  <strong>Draft.</strong> The executable agreement, with the full schedules of
+  sub-processors and security measures, is published at milestone 12 alongside the
+  platform level. It is listed here now because the architecture was designed around
+  it rather than the other way round, and because a hospital evaluating us will ask
+  for it first.
+</div>
+
+<h2>Who decides what</h2>
+<p>
+  The hospital decides what patient data is collected, why, how long it is kept and
+  who may see it. Curavia processes that data only on the hospital's instructions, to
+  provide the service, and for no purpose of its own. We do not sell data, we do not
+  use patient records to train models, and we do not share them with anyone the
+  hospital has not instructed us to share them with.
+</p>
+
+<h2>Access by Curavia staff</h2>
+<p>
+  None by default. Support access to a hospital's records requires the hospital to
+  grant it, to a named person, for a limited period, with a reason. It is logged into
+  the hospital's own audit log and it expires automatically.
+</p>
+
+<h2>Sub-processors</h2>
+<p>
+  The service depends on a database host, an object-storage provider, an email
+  provider, an SMS provider, a payment processor and a video provider. Each is listed
+  with its role and location in the schedule, and the hospital is told before one
+  changes.
+</p>
+
+<h2>Breaches</h2>
+<p>
+  If we become aware of a personal data breach we notify the affected hospital
+  without undue delay, with what we know and what we are doing, in time for the
+  hospital to meet its own 72-hour obligation to the Nigeria Data Protection
+  Commission. We assist with that notification.
+</p>
+
+<h2>Retention, export and deletion</h2>
+<p>
+  Medical-record retention periods are the hospital's to set, in its own settings. A
+  hospital may export everything it holds at any time. On termination the hospital
+  chooses: export and delete, or export and keep a read-only archive for an agreed
+  period. We never delete a hospital's data without notice and an export.
+</p>
+{% endblock %}

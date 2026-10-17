@@ -1,0 +1,13 @@
+-r requirements.txt
+
+pytest==9.1.1
+pytest-django==4.14.0
+pytest-cov==7.1.0
+pytest-asyncio==1.4.0
+factory-boy==3.3.3
+freezegun==1.5.5
+ruff==0.17.1
+mypy==2.4.0
+django-stubs[compatible-mypy]==6.1.2
+djangorestframework-stubs==3.18.1
+types-PyYAML==6.0.12.20250915

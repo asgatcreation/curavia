@@ -1,0 +1,359 @@
+# Curavia — the permissions matrix
+#
+# This file is the single source of truth for who can do what. It is read by:
+#
+#   * backend/tests/permissions  — generates a test per (permission x role)
+#   * manage.py export_permissions_matrix — generates the README table
+#   * the in-app role editor     — answers "what can this role do?"
+#
+# The expectations below are written BY HAND, FROM INTENT. They are never
+# derived from the role templates in backend/apps/accounts/role_templates.py,
+# because that would make the tests tautological — they would prove only that
+# the code agrees with itself. Because the two are independent, widening a
+# role template fails the suite. That is the point.
+#
+# RULE: any role not listed under a permission's `allow:` is expected to be
+# DENIED. There is no "unspecified". Adding a role to the `roles:` list below
+# therefore forces a decision on every permission.
+#
+# The matrix grows with each milestone. Milestone 2 covers the permissions the
+# foundations actually enforce, and declares `endpoint:` for the routes that
+# exist so the test hits the real API rather than only the rule engine.
+
+version: 1
+
+# Every hospital role template. Platform roles are tested separately, because
+# they are not tenant-scoped and must be denied patient data by default.
+roles:
+  - owner
+  - facility_admin
+  - doctor
+  - consultant
+  - nurse
+  - nurse_in_charge
+  - front_desk
+  - lab_scientist
+  - lab_supervisor
+  - radiographer
+  - pharmacist
+  - pharmacy_technician
+  - store_keeper
+  - cashier
+  - accountant
+  - hmo_officer
+  - hr_officer
+  - auditor
+
+permissions:
+
+  # ---------------------------------------------------------------- hospital
+  org.settings.view:
+    allow: [owner, facility_admin, auditor]
+    note: Everyone else has no reason to read hospital configuration.
+    endpoint:
+      method: GET
+      url_name: api:v1:branch-list
+
+  org.settings.change:
+    allow: [owner]
+    note: >
+      Only the owner. A facility administrator can run the hospital day to day
+      but changing settings can switch off modules other staff depend on.
+
+  org.branch.manage:
+    allow: [owner, facility_admin]
+
+  org.module.manage:
+    allow: [owner]
+    note: Switching a module off hides screens for every member of staff.
+
+  # ------------------------------------------------------------------- staff
+  staff.view:
+    allow: [owner, facility_admin, hr_officer, auditor]
+    note: >
+      A doctor does not need the staff directory to do clinical work. Everyone
+      can always read their OWN staff record — that is an object-level rule
+      (is_own_record), not a permission, and it is tested separately.
+
+  staff.invite:
+    allow: [owner, facility_admin, hr_officer]
+
+  staff.manage:
+    allow: [owner, facility_admin]
+    note: HR keeps records; changing who can see patient data is not HR's call.
+
+  staff.deactivate:
+    allow: [owner, facility_admin]
+
+  role.manage:
+    allow: [owner]
+    note: >
+      Editing roles is editing the permission system itself. Only the owner,
+      and the owner role cannot strip its own access (is_protected).
+    endpoint:
+      method: GET
+      url_name: api:v1:permissions
+
+  branch.view_all:
+    allow: [owner, facility_admin, nurse_in_charge, accountant, hr_officer, auditor]
+    note: >
+      Deliberately narrow. A doctor or cashier works in one branch at a time;
+      seeing every branch's queue would be noise and a wider data surface.
+
+  # ------------------------------------------------------------------- audit
+  audit.view:
+    allow: [owner, auditor]
+    note: >
+      The medical director (owner) and the auditor. Nobody else, including the
+      facility administrator — an audit log readable by the person being
+      audited is not an audit log. The auditor's own reads are audited too.
+    endpoint:
+      method: GET
+      url_name: api:v1:audit-list
+
+  audit.verify:
+    allow: [owner, auditor]
+    note: Recomputes the hash chain and reports the exact row if it is broken.
+    endpoint:
+      method: GET
+      url_name: api:v1:audit-verify
+
+  emergency.break_glass:
+    allow: [owner, doctor]
+    note: >
+      Clinicians who may face an unknown patient in an emergency. Requires a
+      written reason, expires on its own, and alerts the medical director.
+
+  emergency.review:
+    allow: [owner, auditor]
+
+  # ---------------------------------------------------------------- patients
+  patients.view:
+    allow:
+      - owner
+      - facility_admin
+      - doctor
+      - consultant
+      - nurse
+      - nurse_in_charge
+      - front_desk
+      - lab_scientist
+      - lab_supervisor
+      - radiographer
+      - pharmacist
+      - pharmacy_technician
+      - cashier
+      - hmo_officer
+      - auditor
+    note: >
+      Broad, because almost everyone needs to identify the person in front of
+      them — but this grants the DEMOGRAPHIC record only. What each role then
+      sees of it is narrowed by field masking, and clinical content needs
+      clinical.note.read. The store keeper and the accountant are excluded
+      because neither ever deals with a patient.
+
+  patients.create:
+    allow: [owner, facility_admin, doctor, front_desk]
+    note: Registration happens at the front desk, or by a doctor in an emergency.
+
+  patients.change:
+    allow: [owner, facility_admin, doctor, front_desk]
+
+  patients.merge:
+    allow: [owner, facility_admin, front_desk]
+    note: >
+      Merging two records is hard to undo and health records officers are the
+      people trained to judge a duplicate. Audited, and reversible.
+
+  patients.view_all:
+    allow: [owner, auditor]
+    note: >
+      Bypasses the treating-relationship rules. Only the medical director and
+      the auditor; everybody else reaches a patient through a relationship or
+      through break-the-glass.
+
+  # ---------------------------------------------------------------- clinical
+  clinical.note.read:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, pharmacist, auditor]
+    note: >
+      The cashier and the accountant are absent on purpose — this is the line
+      the whole design is built to hold. A pharmacist needs the note to review
+      a prescription safely.
+
+  clinical.note.write:
+    allow: [owner, doctor, consultant]
+
+  clinical.note.sign:
+    allow: [owner, doctor, consultant]
+    note: A signature is a medico-legal act; only the clinician who wrote it.
+
+  clinical.note.amend:
+    allow: [owner, doctor]
+    note: Amendments are versioned, never overwrites, and always audited.
+
+  clinical.sensitive.view:
+    allow: [owner, doctor, consultant]
+    note: >
+      HIV status, psychiatric notes and anything flagged sensitive. Encrypted
+      at rest with keys outside the database; every read is audited. Nurses are
+      excluded by default — a hospital can widen it in its own role editor.
+
+  clinical.order.create:
+    allow: [owner, doctor, consultant]
+
+  clinical.referral.create:
+    allow: [owner, doctor, consultant]
+
+  # ------------------------------------------------------- triage and nursing
+  triage.vitals.record:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge]
+
+  triage.note.write:
+    allow: [owner, nurse, nurse_in_charge]
+
+  # ------------------------------------------------------------------- lab
+  lab.order.view:
+    allow:
+      [owner, doctor, consultant, lab_scientist, lab_supervisor, auditor]
+
+  lab.sample.collect:
+    allow: [owner, nurse, nurse_in_charge, lab_scientist, lab_supervisor]
+
+  lab.result.enter:
+    allow: [owner, lab_scientist, lab_supervisor]
+
+  lab.result.verify:
+    allow: [owner, lab_supervisor]
+    note: >
+      A scientist cannot verify their own result. Separation of duties is the
+      whole reason verification exists.
+
+  lab.catalogue.manage:
+    allow: [owner, lab_supervisor]
+
+  # -------------------------------------------------------------- radiology
+  radiology.order.view:
+    allow: [owner, doctor, consultant, radiographer, auditor]
+
+  radiology.report.write:
+    allow: [owner, radiographer]
+
+  # --------------------------------------------------------------- pharmacy
+  pharmacy.queue.view:
+    allow: [owner, pharmacist, pharmacy_technician, auditor]
+
+  pharmacy.dispense:
+    allow: [owner, pharmacist, pharmacy_technician]
+
+  pharmacy.override_warning:
+    allow: [owner, pharmacist]
+    note: >
+      A technician must not be able to dismiss an interaction or allergy
+      warning. Every override records the rule, the reason and who did it.
+
+  pharmacy.controlled.record:
+    allow: [owner, pharmacist]
+
+  pharmacy.pos.sell:
+    allow: [owner, pharmacist, pharmacy_technician]
+
+  # -------------------------------------------------------------- inventory
+  inventory.view:
+    allow: [owner, facility_admin, pharmacist, pharmacy_technician, store_keeper, auditor]
+
+  inventory.receive:
+    allow: [owner, store_keeper]
+
+  inventory.transfer:
+    allow: [owner, pharmacist, store_keeper]
+
+  inventory.adjust:
+    allow: [owner, store_keeper]
+    note: >
+      Writing off stock is how shrinkage gets hidden. Kept to the store keeper
+      and the owner, and every adjustment is a ledger row with a reason.
+
+  inventory.purchase.manage:
+    allow: [owner, store_keeper]
+
+  # -------------------------------------------------------------- inpatient
+  inpatient.admit:
+    allow: [owner, doctor, consultant, nurse_in_charge]
+
+  inpatient.bed.manage:
+    allow: [owner, nurse, nurse_in_charge]
+
+  inpatient.mar.administer:
+    allow: [owner, nurse, nurse_in_charge]
+    note: Only the person giving the drug records that it was given.
+
+  # ---------------------------------------------------------------- billing
+  billing.invoice.view:
+    allow:
+      [owner, facility_admin, front_desk, cashier, accountant, hmo_officer, auditor]
+
+  billing.payment.take:
+    allow: [owner, cashier]
+
+  billing.refund:
+    allow: [owner, accountant]
+    note: Not the cashier who took the money. Separation of duties again.
+
+  billing.waiver.request:
+    allow: [owner, facility_admin, cashier]
+
+  billing.waiver.approve:
+    allow: [owner, facility_admin]
+    note: The person who asks for a discount is never the person who grants it.
+
+  billing.price.manage:
+    allow: [owner, facility_admin, accountant]
+
+  billing.shift.reconcile:
+    allow: [owner, cashier]
+
+  # ----------------------------------------------------------------- payers
+  payers.manage:
+    allow: [owner, facility_admin, hmo_officer]
+
+  payers.claim.submit:
+    allow: [owner, hmo_officer]
+
+  # ------------------------------------------------------------- accounting
+  accounting.view:
+    allow: [owner, accountant, auditor]
+    note: >
+      The facility administrator runs operations, not the books. A hospital
+      that wants otherwise can grant it in its own role editor.
+
+  accounting.expense.manage:
+    allow: [owner, accountant]
+
+  # --------------------------------------------------------------------- hr
+  hr.staff.manage:
+    allow: [owner, hr_officer]
+
+  hr.roster.manage:
+    allow: [owner, facility_admin, nurse_in_charge, hr_officer]
+
+  # -------------------------------------------------------------- reporting
+  reporting.view:
+    allow:
+      - owner
+      - facility_admin
+      - doctor
+      - consultant
+      - lab_supervisor
+      - accountant
+      - hmo_officer
+      - auditor
+
+  reporting.export:
+    allow: [owner, facility_admin, accountant, hmo_officer, auditor]
+    note: >
+      An export leaves the system, so it is narrower than viewing a report and
+      is flagged `bulk` in the audit log.
+
+  # ----------------------------------------------------------- telemedicine
+  telemedicine.consult:
+    allow: [owner, doctor, consultant]

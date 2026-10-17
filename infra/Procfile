@@ -1,0 +1,13 @@
+# Both processes in one container.
+#
+# Render's free tier has no background worker service, and its 750 free
+# instance-hours a month only cover ONE always-on service, so the web server
+# and the Celery worker share a container. Concurrency 1 and --without-gossip
+# keep the worker's memory inside the free instance's budget.
+#
+# On a paid plan these split into two services and this file is replaced by two
+# start commands. Nothing in the application code changes.
+
+web: python manage.py migrate --noinput && daphne -b 0.0.0.0 -p ${PORT:-8000} config.asgi:application
+worker: celery -A config worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-1} --without-gossip --without-mingle --without-heartbeat
+beat: celery -A config beat --loglevel=info

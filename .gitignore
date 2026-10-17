@@ -1,0 +1,87 @@
+# --------------------------------------------------------------------------
+# Secrets — never committed. See .env.example for the shape.
+# --------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# --------------------------------------------------------------------------
+# Python
+# --------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+/backend/staticfiles/
+/backend/media/
+/backend/static/CACHE/
+
+# --------------------------------------------------------------------------
+# Node / frontend
+# --------------------------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+dist/
+dist-ssr/
+build/
+.vite/
+*.local
+.eslintcache
+.turbo/
+
+# Generated API types — rebuilt from the OpenAPI schema by `npm run types`.
+# Committing them would let them drift from the backend silently.
+/frontend/shared/src/api/generated.ts
+
+# Playwright
+/frontend/**/test-results/
+/frontend/**/playwright-report/
+/frontend/**/playwright/.cache/
+
+# --------------------------------------------------------------------------
+# Editors and OS
+# --------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --------------------------------------------------------------------------
+# Local scratch
+# --------------------------------------------------------------------------
+/scratch/
+/tmp/
+*.bak
+*.orig

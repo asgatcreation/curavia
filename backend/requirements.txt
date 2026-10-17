@@ -1,0 +1,45 @@
+# Curavia — backend runtime dependencies
+# Versions checked against PyPI on 2026-10-17. See docs/00-decisions.md §2.
+
+Django==6.1.2
+djangorestframework==3.18.3
+drf-spectacular==0.30.0
+django-cors-headers==4.9.0
+django-filter==26.2
+
+# ASGI / WebSockets
+channels==4.3.2
+channels-redis==4.3.0
+daphne==4.2.3
+
+# Background jobs
+celery==5.6.3
+redis==8.1.0
+
+# Database
+psycopg[binary]==3.3.6
+dj-database-url==3.1.2
+
+# Auth, permissions
+django-allauth[mfa]==65.20.0
+rules==3.5
+djangorestframework-simplejwt==5.5.1
+django-axes==8.3.1
+
+# Storage
+whitenoise==6.12.0
+# Private S3/R2 object storage (django-storages + boto3) arrives at milestone 7,
+# with the first file upload. Keeping botocore's 16 MB wheel out of the
+# foundations keeps a cold `pip install` quick.
+
+# Monitoring
+sentry-sdk==2.72.0
+structlog==26.1.0
+
+# Utilities
+python-dotenv==1.2.4
+PyYAML==6.0.3
+qrcode==8.2
+
+# PDF rendering (WeasyPrint) is added at milestone 7. On Windows it needs the
+# GTK runtime, so it is deliberately not a dependency of the foundations.

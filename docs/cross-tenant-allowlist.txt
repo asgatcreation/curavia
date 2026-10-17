@@ -1,0 +1,36 @@
+# Files allowed to bypass the tenant scope.
+#
+# apps/core/tenancy.py makes a tenant-scoped query impossible to run without a
+# hospital in scope. These files are the exceptions, each for a stated reason.
+# scripts/check-cross-tenant-allowlist.sh fails CI if any other file uses
+# `Model.unscoped` or `unscoped(...)`, so widening this list is a deliberate,
+# reviewable act.
+#
+# Adding a line here needs a reason on the line above it. If you cannot write
+# one, the query probably wants scoping instead.
+
+# Defines the escape hatch itself.
+backend/apps/core/tenancy.py
+
+# A user belongs to several hospitals, so resolving their memberships has to
+# look across hospitals before any one of them is in scope. This is the lookup
+# the tenant middleware itself depends on.
+backend/apps/accounts/models.py
+
+# Housekeeping that runs platform-wide: expiring break-the-glass grants and
+# anchoring every hospital's audit chain. Neither reads clinical data.
+backend/apps/core/tasks.py
+
+# Test setup builds hospitals before any scope exists, and asserts across two
+# hospitals at once to prove they stay apart.
+backend/tests/factories.py
+backend/tests/isolation/test_tenant_isolation.py
+
+# Declares `Model.unscoped.none()` as each tenant viewset's queryset attribute,
+# purely so drf-spectacular can introspect the model. `.none()` can never
+# return a row, and the real queryset is still the scoped one.
+backend/apps/core/api/views.py
+
+# Verifies every hospital's audit chain in one run, for cron. Reads only
+# hashes and sequence numbers, never clinical data.
+backend/apps/core/management/commands/verify_audit_chain.py

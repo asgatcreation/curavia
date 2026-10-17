@@ -1,0 +1,58 @@
+# Local development services.
+#
+# Ports are deliberately non-standard (55432, 56379) because a developer
+# machine usually already has Postgres on 5432 and Redis on 6379. Clashing with
+# those would either fail to start or, worse, quietly connect the test suite to
+# the wrong database.
+#
+#     docker compose -f infra/docker-compose.yml up -d
+#
+# Then in .env:
+#     POSTGRES_HOST=localhost
+#     POSTGRES_PORT=55432
+#     REDIS_URL=redis://localhost:56379/0
+
+name: curavia
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: curavia-postgres
+    environment:
+      POSTGRES_DB: curavia
+      POSTGRES_USER: curavia
+      # Local development only. Production credentials come from the host's
+      # own secret store; see .env.example.
+      POSTGRES_PASSWORD: curavia-local-dev
+      # Trigram search and full-text search both need these at template level.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curavia -d curavia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    container_name: curavia-redis
+    # Persistence off: Redis here is a message bus and a cache, never a source
+    # of truth. Everything durable lives in Postgres.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    name: curavia-postgres-data

@@ -1,0 +1,50 @@
+Copyright (c) 2026 Akanji Oluwaseun Gabriel (@asgatcreation)
+
+ALL RIGHTS RESERVED.
+
+This software and its source code are made publicly viewable as a portfolio and
+for the purpose of demonstrating the author's work. Publishing it does NOT
+grant any licence to use it.
+
+Without the prior written permission of the author, you may NOT:
+
+  - copy or redistribute this software, or any substantial part of it;
+  - modify it or create derivative works from it;
+  - use it, in whole or in part, in any product, service or website, whether
+    commercial or non-commercial;
+  - sublicense, sell, rent, lend or otherwise make it available to others;
+  - remove or alter this notice or any attribution to the author.
+
+You MAY view the source code on GitHub, and fork it there, for the sole purpose
+of viewing it, and only to the extent permitted by GitHub's Terms of Service.
+
+THIRD-PARTY COMPONENTS
+
+Third-party components retain their own licences. These include the open-source
+packages listed in backend/requirements.txt and the frontend package.json files
+(among them Django, Django REST Framework, Django Channels, Celery, React and
+Tailwind CSS), each under its own terms.
+
+MEDICAL AND DATA DISCLAIMER
+
+This software is not a certified medical device and is not approved by any
+regulatory authority for clinical use. Its clinical decision support features —
+including drug interaction, allergy, dose and duplicate-therapy checking — are
+informational only and do not replace the judgement of a qualified clinician.
+
+All data in the public demonstration, in this repository, and in its tests is
+synthetic. It contains no real patient information.
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+PERMISSION REQUESTS
+
+For permission to use this software, contact the author through their GitHub
+profile: https://github.com/asgatcreation
