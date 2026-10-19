@@ -21,10 +21,17 @@ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Prefetch
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.core.models import PHONE_VALIDATOR, TenantScoped, TimeStampedModel, UUIDPrimaryKeyModel
+from apps.core.models import (
+    PHONE_VALIDATOR,
+    Branch,
+    TenantScoped,
+    TimeStampedModel,
+    UUIDPrimaryKeyModel,
+)
 from apps.core.permissions import PLATFORM_CODES, validate_codes
 from apps.core.utils import uuid7
 
@@ -117,11 +124,26 @@ class User(AbstractBaseUser, PermissionsMixin, UUIDPrimaryKeyModel):
     # -- memberships and permissions -------------------------------------
 
     def live_memberships(self):
-        """Active memberships in live hospitals, with roles prefetched."""
+        """
+        This person's active memberships, across every hospital they work at.
+
+        Roles and branches are prefetched through the **unscoped** managers on
+        purpose. They are tenant-scoped models, so the ordinary related manager
+        would filter them to whichever hospital happens to be in scope — and
+        then a consultant who works at three hospitals would see roles for one
+        of them and blanks for the other two in their own branch switcher.
+
+        This is safe because the outer query is already pinned to
+        ``user=self``: it can only ever return this person's own memberships,
+        and therefore only their own roles.
+        """
         return (
             StaffMembership.unscoped.filter(user=self, is_active=True)
-            .select_related("organisation")
-            .prefetch_related("roles", "branches")
+            .select_related("organisation", "default_branch")
+            .prefetch_related(
+                Prefetch("roles", queryset=Role.unscoped.all()),
+                Prefetch("branches", queryset=Branch.unscoped.all()),
+            )
         )
 
     def has_live_membership(self, organisation_id: uuid.UUID | str) -> bool:
@@ -134,7 +156,10 @@ class User(AbstractBaseUser, PermissionsMixin, UUIDPrimaryKeyModel):
             StaffMembership.unscoped.filter(
                 user=self, organisation_id=organisation_id, is_active=True
             )
-            .prefetch_related("roles", "branches")
+            .prefetch_related(
+                Prefetch("roles", queryset=Role.unscoped.all()),
+                Prefetch("branches", queryset=Branch.unscoped.all()),
+            )
             .first()
         )
 
@@ -152,7 +177,18 @@ class User(AbstractBaseUser, PermissionsMixin, UUIDPrimaryKeyModel):
             membership = self.membership_for(organisation_id)
             codes: set[str] = set()
             if membership:
-                for role in membership.roles.all():
+                # Read through the unscoped manager, filtered explicitly to
+                # this membership and this hospital.
+                #
+                # This is the bootstrap: working out what somebody may do is
+                # what establishes the tenant scope in the first place, so it
+                # cannot itself require a scope to already be set. Using the
+                # scoped manager here raised TenantScopeMissing on every
+                # token-authenticated request — the chicken-and-egg that
+                # tests/test_api_base.py now exists to keep closed.
+                for role in Role.unscoped.filter(
+                    memberships=membership, organisation_id=membership.organisation_id
+                ):
                     codes.update(role.permissions)
             if self.is_platform_staff:
                 for platform_role in PlatformRole.objects.filter(users=self):
