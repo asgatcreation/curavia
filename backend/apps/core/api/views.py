@@ -18,12 +18,11 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from apps.core import audit
 from apps.core.audit import AuditEvent, ChainVerificationError
@@ -31,6 +30,11 @@ from apps.core.models import Branch, Department
 from apps.core.permissions import HasPermission
 from apps.core.request_context import as_audit_kwargs
 
+from .base import (
+    CuraviaAPIView,
+    CuraviaReadOnlyModelViewSet,
+    SchemaSafeQuerysetMixin,
+)
 from .filters import AuditEventFilterSet, DepartmentFilterSet
 from .pagination import AuditPagination
 from .serializers import (
@@ -110,7 +114,7 @@ def readyz(request: HttpRequest) -> JsonResponse:
 # --------------------------------------------------------------------------
 
 
-class MeView(APIView):
+class MeView(CuraviaAPIView):
     """
     Everything the staff app needs on boot.
 
@@ -170,7 +174,7 @@ class MeView(APIView):
             return False
 
 
-class SwitchBranchView(APIView):
+class SwitchBranchView(CuraviaAPIView):
     """
     Move between the branches this person works at.
 
@@ -206,7 +210,7 @@ class SwitchBranchView(APIView):
         return Response(BranchSerializer(branch).data)
 
 
-class ModuleListView(APIView):
+class ModuleListView(CuraviaAPIView):
     """The module catalogue, with which ones are live for this hospital."""
 
     permission_classes = [IsAuthenticated]
@@ -216,7 +220,7 @@ class ModuleListView(APIView):
         return Response(module_catalogue(request.available_modules))
 
 
-class PermissionCatalogueView(APIView):
+class PermissionCatalogueView(CuraviaAPIView):
     """
     Every permission code, for the role editor.
 
@@ -237,30 +241,7 @@ class PermissionCatalogueView(APIView):
 # --------------------------------------------------------------------------
 
 
-class SchemaSafeQuerysetMixin:
-    """
-    Let drf-spectacular introspect a tenant-scoped viewset.
-
-    Schema generation calls ``get_queryset()`` with no request, and therefore
-    no hospital in scope, where the guard in ``apps.core.tenancy`` correctly
-    raises ``TenantScopeMissing``. drf-spectacular sets ``swagger_fake_view``
-    on the view while introspecting, so this returns the declared, empty
-    ``queryset`` in that case and the real one otherwise.
-
-    The alternative — relaxing the guard so unscoped queries return nothing —
-    would quietly remove the protection everywhere to satisfy a docs tool.
-    """
-
-    def get_queryset(self):  # type: ignore[no-untyped-def]
-        if getattr(self, "swagger_fake_view", False):
-            return self.queryset  # type: ignore[attr-defined]
-        return self.get_tenant_queryset()
-
-    def get_tenant_queryset(self):  # type: ignore[no-untyped-def]
-        raise NotImplementedError
-
-
-class BranchViewSet(SchemaSafeQuerysetMixin, viewsets.ReadOnlyModelViewSet):
+class BranchViewSet(SchemaSafeQuerysetMixin, CuraviaReadOnlyModelViewSet):
     """Read-only here; branches are created by the setup wizard at milestone 4."""
 
     # Declared for schema generation only. drf-spectacular introspects this
@@ -278,7 +259,7 @@ class BranchViewSet(SchemaSafeQuerysetMixin, viewsets.ReadOnlyModelViewSet):
         return Branch.objects.live().order_by("name")
 
 
-class DepartmentViewSet(SchemaSafeQuerysetMixin, viewsets.ReadOnlyModelViewSet):
+class DepartmentViewSet(SchemaSafeQuerysetMixin, CuraviaReadOnlyModelViewSet):
     queryset = Department.unscoped.none()  # schema generation only; see above
     serializer_class = DepartmentSerializer
     permission_classes = [HasPermission]
@@ -294,7 +275,7 @@ class DepartmentViewSet(SchemaSafeQuerysetMixin, viewsets.ReadOnlyModelViewSet):
 # --------------------------------------------------------------------------
 
 
-class AuditEventViewSet(SchemaSafeQuerysetMixin, viewsets.ReadOnlyModelViewSet):
+class AuditEventViewSet(SchemaSafeQuerysetMixin, CuraviaReadOnlyModelViewSet):
     """
     The audit log, for the auditor and the medical director.
 

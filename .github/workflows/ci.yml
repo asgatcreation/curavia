@@ -137,9 +137,9 @@ jobs:
       # Needs no database and takes a second. A wrong URL name makes the
       # suites below fail with NoReverseMatch, which reads like a security
       # regression and is not one — so it is ruled out first.
-      - name: URL names resolve
+      - name: Structural checks (URLs, API base classes)
         working-directory: backend
-        run: pytest tests/test_urls.py -q --tb=short
+        run: pytest tests/test_urls.py tests/test_api_base.py -q --tb=short
 
       # Then these two, first and separately. If a hospital can see another
       # hospital's data, nothing else about the build matters.

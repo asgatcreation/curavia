@@ -26,12 +26,12 @@ from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.accounts.models import UserSession
 from apps.accounts.signals import revoke_all_sessions
 from apps.core import audit
+from apps.core.api.base import CuraviaAPIView
 from apps.core.api.types import CuraviaRequest
 from apps.core.request_context import as_audit_kwargs
 
@@ -81,7 +81,7 @@ def _verify_mfa_code(user: Any, code: str) -> bool:
     return False
 
 
-class LoginView(APIView):
+class LoginView(CuraviaAPIView):
     """Step one: email and password."""
 
     permission_classes = [AllowAny]
@@ -141,7 +141,7 @@ class LoginView(APIView):
         return Response({**_issue_tokens(user), "mfa_required": False, "mfa_enrolled": False})
 
 
-class MfaChallengeView(APIView):
+class MfaChallengeView(CuraviaAPIView):
     """Step two: the six-digit code."""
 
     permission_classes = [AllowAny]
@@ -204,7 +204,7 @@ class RevokedSessionsSerializer(serializers.Serializer):
     timeout_seconds = serializers.IntegerField()
 
 
-class LogoutView(APIView):
+class LogoutView(CuraviaAPIView):
     """Blacklist the refresh token and close this device's session."""
 
     permission_classes = [IsAuthenticated]
@@ -244,7 +244,7 @@ class SessionSerializer(serializers.ModelSerializer):
         return bool(current and obj.session_key == current)
 
 
-class SessionListView(APIView):
+class SessionListView(CuraviaAPIView):
     """The device list. Session timeout is set by SESSION_COOKIE_AGE."""
 
     permission_classes = [IsAuthenticated]
@@ -255,7 +255,7 @@ class SessionListView(APIView):
         return Response(SessionSerializer(sessions, many=True, context={"request": request}).data)
 
 
-class RevokeAllSessionsView(APIView):
+class RevokeAllSessionsView(CuraviaAPIView):
     """
     Sign out everywhere.
 
