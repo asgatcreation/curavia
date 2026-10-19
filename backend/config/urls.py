@@ -31,11 +31,18 @@ api_v1 = [
     path("", include("apps.core.api.urls")),
 ]
 
+# Nested namespaces, so routes reverse as "api:v1:branch-list". Worth the
+# extra line: when there is a v2, "api:v2:branch-list" slots in beside it
+# without renaming every existing reverse() call.
+api_versions = [
+    path("v1/", include((api_v1, "v1"))),
+]
+
 urlpatterns = [
     # Liveness and readiness. No auth, no tenant, no database for /healthz.
     path("healthz", core_views.healthz, name="healthz"),
     path("readyz", core_views.readyz, name="readyz"),
-    path("api/v1/", include((api_v1, "api"), namespace="v1")),
+    path("api/", include((api_versions, "api"))),
     # OpenAPI: the schema the frontend's TypeScript types are generated from.
     path("api/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

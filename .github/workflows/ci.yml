@@ -134,7 +134,14 @@ jobs:
           CORS_ALLOWED_ORIGINS: https://curavia.example
           CSRF_TRUSTED_ORIGINS: https://curavia.example
 
-      # Run these two first and separately. If a hospital can see another
+      # Needs no database and takes a second. A wrong URL name makes the
+      # suites below fail with NoReverseMatch, which reads like a security
+      # regression and is not one — so it is ruled out first.
+      - name: URL names resolve
+        working-directory: backend
+        run: pytest tests/test_urls.py -q --tb=short
+
+      # Then these two, first and separately. If a hospital can see another
       # hospital's data, nothing else about the build matters.
       - name: Tenant isolation suite
         working-directory: backend

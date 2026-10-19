@@ -19,7 +19,11 @@ COPY package.json package-lock.json* ./
 COPY frontend/staff/package.json ./frontend/staff/
 COPY frontend/portal/package.json ./frontend/portal/
 COPY frontend/shared/package.json ./frontend/shared/
-RUN npm ci --omit=dev --no-audit --fund=false || npm install --no-audit --fund=false
+
+# NOT --omit=dev: vite, typescript and the Tailwind plugin are devDependencies
+# and are exactly what builds the bundle. Nothing from this stage reaches the
+# runtime image, so there is nothing to slim down here.
+RUN npm ci --no-audit --fund=false || npm install --no-audit --fund=false
 
 COPY frontend ./frontend
 RUN npm run build --workspaces --if-present
