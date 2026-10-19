@@ -87,7 +87,9 @@ jobs:
 
     env:
       DJANGO_SETTINGS_MODULE: config.settings.test
-      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      # `check --deploy` rejects a key under 50 characters (security.W009),
+      # so this is long as well as obviously disposable. Not used anywhere else.
+      DJANGO_SECRET_KEY: ci-only-disposable-key-not-used-for-anything-real-0192837465
       POSTGRES_DB: curavia
       POSTGRES_USER: curavia
       POSTGRES_PASSWORD: curavia-ci

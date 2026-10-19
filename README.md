@@ -197,7 +197,7 @@ history is detectable too.
 | Permissions | django-rules 3.5 | Predicates, not permission rows — see above |
 | Auth | django-allauth 65 with TOTP MFA | Mandatory two-factor for every staff role |
 | API docs | drf-spectacular | Generates the frontend's TypeScript types; CI fails if they drift |
-| Frontend | React 19, TypeScript 7, Vite 8 | Behind a login, highly interactive, long-lived sockets |
+| Frontend | React 19, TypeScript 5.9, Vite 8 | Behind a login, highly interactive, long-lived sockets |
 | Styling | Tailwind 4 + shadcn/ui | Components copied in, not a dependency to fight |
 | Data layer | TanStack Query + Router | Cursor pagination for feeds that change while you read them |
 | Marketing | Django templates | Needs SEO and fast first paint; no third Node server to pay for |

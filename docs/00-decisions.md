@@ -108,7 +108,7 @@ Everything we need is already installed. Nothing for you to install locally.
 | Package | Version |
 |---|---|
 | react / react-dom | **19.3.1** |
-| typescript | **7.0.2** |
+| typescript | **5.9.3** |
 | vite | **8.3.4** |
 | @tanstack/react-query | 5.104.3 |
 | @tanstack/react-router | 1.170.45 |
@@ -122,7 +122,9 @@ Everything we need is already installed. Nothing for you to install locally.
 
 Plus **shadcn/ui** (components copied into our repo, not a dependency) and **openapi-typescript** to generate our API types from the backend's OpenAPI schema.
 
-> Note: TypeScript 7, Tailwind 4, Vite 8, zod 4 and ESLint 10 are all major versions that changed their config format from what most tutorials show. I will write the configs correctly from scratch rather than copy old boilerplate.
+> Note: Tailwind 4, Vite 8, zod 4 and ESLint 10 are all major versions that changed their config format from what most tutorials show, so the configs are written from scratch rather than copied from older boilerplate.
+>
+> **Correction (19 Oct 2026):** TypeScript was originally pinned at 7.0.2, the newest release. That does not install. `openapi-typescript` peer-requires `typescript@^5.x` and `typescript-eslint` requires `<6.1.0`, so the only version the whole toolchain accepts is the newest 5.x, **5.9.3**. Checking that a version exists is not the same as checking the ecosystem supports it — the lesson is to resolve the dependency tree before pinning a brand-new major.
 
 ### Do we need Next.js or HTMX? My answer: no, but with one change to your plan
 
