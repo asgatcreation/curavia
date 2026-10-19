@@ -149,6 +149,17 @@ jobs:
             tail -n 150 /tmp/pytest.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Logs and job summaries both need a GitHub sign-in, even on a
+            # public repository. Annotations do not, so a red build explains
+            # itself to anyone looking at the run.
+            grep -E "^(FAILED|ERROR) " /tmp/pytest.log | head -n 30 | while IFS= read -r line; do
+              echo "::error title=Tenant isolation suite::$line"
+            done
+            grep -E "^E +[A-Za-z]" /tmp/pytest.log | head -n 12 | while IFS= read -r line; do
+              echo "::error title=Tenant isolation suite (assertion)::$line"
+            done
+          fi
           exit $status
 
       - name: Permissions matrix suite
@@ -164,6 +175,17 @@ jobs:
             tail -n 150 /tmp/pytest.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Logs and job summaries both need a GitHub sign-in, even on a
+            # public repository. Annotations do not, so a red build explains
+            # itself to anyone looking at the run.
+            grep -E "^(FAILED|ERROR) " /tmp/pytest.log | head -n 30 | while IFS= read -r line; do
+              echo "::error title=Permissions matrix suite::$line"
+            done
+            grep -E "^E +[A-Za-z]" /tmp/pytest.log | head -n 12 | while IFS= read -r line; do
+              echo "::error title=Permissions matrix suite (assertion)::$line"
+            done
+          fi
           exit $status
 
       - name: Full test suite with coverage
@@ -179,6 +201,17 @@ jobs:
             tail -n 150 /tmp/pytest.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            # Logs and job summaries both need a GitHub sign-in, even on a
+            # public repository. Annotations do not, so a red build explains
+            # itself to anyone looking at the run.
+            grep -E "^(FAILED|ERROR) " /tmp/pytest.log | head -n 30 | while IFS= read -r line; do
+              echo "::error title=Full test suite::$line"
+            done
+            grep -E "^E +[A-Za-z]" /tmp/pytest.log | head -n 12 | while IFS= read -r line; do
+              echo "::error title=Full test suite (assertion)::$line"
+            done
+          fi
           exit $status
 
       - name: OpenAPI schema is valid and current

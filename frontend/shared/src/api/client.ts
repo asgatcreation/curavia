@@ -122,14 +122,11 @@ export class ApiClient {
   }
 
   post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>(path, {
-      method: "POST",
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    return this.request<T>(path, withBody("POST", body));
   }
 
   patch<T>(path: string, body: unknown): Promise<T> {
-    return this.request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+    return this.request<T>(path, withBody("PATCH", body));
   }
 
   delete<T>(path: string): Promise<T> {
@@ -147,6 +144,19 @@ export class ApiClient {
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+/**
+ * Build a request init, omitting `body` entirely when there is none.
+ *
+ * `exactOptionalPropertyTypes` is on, so `{ body: undefined }` is not the same
+ * as leaving `body` out: `RequestInit.body` is declared `BodyInit | null`, and
+ * an explicit `undefined` is rejected. Omitting the key is what we actually
+ * mean anyway - a POST with no payload should send no body.
+ */
+function withBody(method: string, body?: unknown): RequestInit {
+  if (body === undefined) return { method };
+  return { method, body: JSON.stringify(body) };
+}
 
 async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();
