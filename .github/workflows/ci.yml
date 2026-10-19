@@ -138,26 +138,60 @@ jobs:
       # hospital's data, nothing else about the build matters.
       - name: Tenant isolation suite
         working-directory: backend
-        run: pytest tests/isolation -v --tb=short
+        run: |
+          set -o pipefail
+          status=0
+          pytest tests/isolation -v --tb=short -p no:cacheprovider 2>&1 | tee /tmp/pytest.log || status=$?
+          {
+            echo "### Tenant isolation suite"
+            echo
+            echo '```'
+            tail -n 150 /tmp/pytest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Permissions matrix suite
         working-directory: backend
-        run: pytest tests/permissions -q
+        run: |
+          set -o pipefail
+          status=0
+          pytest tests/permissions -q --tb=short -p no:cacheprovider 2>&1 | tee /tmp/pytest.log || status=$?
+          {
+            echo "### Permissions matrix suite"
+            echo
+            echo '```'
+            tail -n 150 /tmp/pytest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Full test suite with coverage
         working-directory: backend
-        run: pytest --cov --cov-report=term-missing --cov-report=xml
+        run: |
+          set -o pipefail
+          status=0
+          pytest --cov --cov-report=term-missing --cov-report=xml --tb=short 2>&1 | tee /tmp/pytest.log || status=$?
+          {
+            echo "### Full test suite"
+            echo
+            echo '```'
+            tail -n 150 /tmp/pytest.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: OpenAPI schema is valid and current
         working-directory: backend
         run: python manage.py spectacular --fail-on-warn --file /tmp/schema.yml
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
           path: backend/coverage.xml
           retention-days: 7
+          if-no-files-found: ignore
 
   frontend:
     name: Frontend lint, types and build

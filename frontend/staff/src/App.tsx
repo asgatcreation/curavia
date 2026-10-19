@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+
 import type { Me } from "@curavia/shared";
 
 import { api } from "./main";
@@ -26,7 +28,7 @@ export default function App() {
       <Centred>
         <h1 className="text-xl font-semibold">Not signed in</h1>
         <p className="mt-2 max-w-prose text-slate-600 dark:text-slate-400">
-          The API answered: {(error as Error).message}
+          The API answered: {error.message}
         </p>
         <p className="mt-4 text-sm text-slate-500">
           Start the backend with <code>python manage.py runserver</code>, then sign in.
@@ -75,7 +77,7 @@ export default function App() {
   );
 }
 
-function Centred({ children }: { children: React.ReactNode }) {
+function Centred({ children }: { children: ReactNode }) {
   return (
     <div className="grid h-full place-items-center p-6 text-center">
       <div>{children}</div>
@@ -83,7 +85,7 @@ function Centred({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>

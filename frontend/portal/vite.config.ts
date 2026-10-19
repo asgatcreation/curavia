@@ -1,4 +1,6 @@
-import { defineConfig } from "vite";
+// vitest/config rather than vite: the `test` block below is Vitest's,
+// and Vite's own defineConfig type does not include it.
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
