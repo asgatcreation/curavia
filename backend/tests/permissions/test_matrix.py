@@ -89,8 +89,20 @@ def test_separation_of_duties_holds() -> None:
     These are the controls an auditor actually looks for, so they are asserted
     directly rather than left implicit in the big table.
     """
+    # Lab verification is deliberately NOT here, and the first version of this
+    # test was wrong to include it.
+    #
+    # "A scientist must not verify their own result" is a control on the
+    # RESULT, not on the role. In a small Nigerian laboratory the supervisor is
+    # the second pair of eyes and also works the bench, so a role holding both
+    # codes is normal and correct. What must never happen is one person
+    # entering a result and then verifying that same result — an object-level
+    # rule (verifier != enterer) that arrives with the lab module at
+    # milestone 7, along with the LabResult model it attaches to.
+    #
+    # Asserting it at role level forced a role split real laboratories do not
+    # have, in order to satisfy a test that was checking the wrong thing.
     forbidden_pairs = [
-        ("lab.result.enter", "lab.result.verify", "a scientist must not verify their own result"),
         ("billing.waiver.request", "billing.waiver.approve", "asking for and granting a discount"),
         ("billing.payment.take", "billing.refund", "taking money and refunding it"),
     ]

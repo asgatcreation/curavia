@@ -225,8 +225,12 @@ permissions:
   lab.result.verify:
     allow: [owner, lab_supervisor]
     note: >
-      A scientist cannot verify their own result. Separation of duties is the
-      whole reason verification exists.
+      The supervisor both enters and verifies, which is correct: in a small
+      laboratory they are the second pair of eyes and also work the bench.
+      The control is on the RESULT, not the role - one person must never
+      verify a result they entered themselves. That is an object-level rule
+      (verifier != enterer) and it arrives with the lab module at milestone 7,
+      because it needs the LabResult model to attach to.
 
   lab.catalogue.manage:
     allow: [owner, lab_supervisor]
