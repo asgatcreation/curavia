@@ -300,7 +300,11 @@ permissions:
     note: Not the cashier who took the money. Separation of duties again.
 
   billing.waiver.request:
-    allow: [owner, facility_admin, cashier]
+    allow: [owner, cashier]
+    note: >
+      Deliberately NOT the facility administrator, who approves waivers. The
+      person who asks for a discount must never be the person who grants it,
+      so holding both would defeat the control.
 
   billing.waiver.approve:
     allow: [owner, facility_admin]

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from apps.core.permissions import validate_codes
+from apps.core.permissions import ALL_PERMISSION_CODES, PLATFORM_CODES, validate_codes
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,44 +30,33 @@ class RoleTemplate:
     common: bool = True
 
 
+def all_hospital_codes() -> tuple[str, ...]:
+    """
+    Every permission that belongs to a hospital, platform ones excluded.
+
+    Used by the owner role. Generating it means a new permission is held by the
+    owner the moment it exists, which is what the permissions matrix already
+    states and what stops the two drifting apart.
+    """
+    return tuple(sorted(ALL_PERMISSION_CODES - PLATFORM_CODES))
+
+
 ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
     RoleTemplate(
         "owner",
         "Owner / Medical director",
         "Full access to the hospital, including settings, staff and the audit log.",
-        (
-            "org.settings.view",
-            "org.settings.change",
-            "org.branch.manage",
-            "org.module.manage",
-            "staff.view",
-            "staff.invite",
-            "staff.manage",
-            "staff.deactivate",
-            "role.manage",
-            "branch.view_all",
-            "audit.view",
-            "audit.verify",
-            "emergency.review",
-            "emergency.break_glass",
-            "patients.view",
-            "patients.create",
-            "patients.change",
-            "patients.merge",
-            "patients.view_all",
-            "clinical.note.read",
-            "clinical.sensitive.view",
-            "reporting.view",
-            "reporting.export",
-            "accounting.view",
-            "billing.invoice.view",
-            "billing.waiver.approve",
-            "billing.price.manage",
-            "payers.manage",
-            "hr.staff.manage",
-            "hr.roster.manage",
-            "inventory.view",
-        ),
+        # Generated, not listed. A hospital must have exactly one role that can
+        # do anything, or an owner can lock themselves out of their own data —
+        # and a hand-written list drifts from the matrix the moment a new
+        # permission is added. The controls on this role are that it is
+        # `is_protected` (cannot be deleted or stripped) and that everything
+        # done with it is in the hash-chained audit log, which the owner cannot
+        # edit either.
+        #
+        # It deliberately holds no platform permissions: running the hospital
+        # is not the same as running Curavia.
+        all_hospital_codes(),
     ),
     RoleTemplate(
         "facility_admin",
@@ -79,8 +68,13 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "staff.view",
             "staff.invite",
             "staff.manage",
+            "staff.deactivate",
             "branch.view_all",
+            # They cover the front desk and are who fixes a records problem.
             "patients.view",
+            "patients.create",
+            "patients.change",
+            "patients.merge",
             "reporting.view",
             "reporting.export",
             "billing.invoice.view",
@@ -127,6 +121,9 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "clinical.order.create",
             "clinical.referral.create",
             "clinical.sensitive.view",
+            # A visiting consultant is a doctor: they take vitals and admit.
+            "triage.vitals.record",
+            "inpatient.admit",
             "lab.order.view",
             "radiology.order.view",
             "telemedicine.consult",
@@ -323,6 +320,8 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "staff.view",
             "org.settings.view",
             "reporting.view",
+            # An audit that cannot leave the building is not much of an audit.
+            "reporting.export",
             "branch.view_all",
         ),
     ),
