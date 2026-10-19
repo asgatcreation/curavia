@@ -25,6 +25,9 @@ COPY frontend/shared/package.json ./frontend/shared/
 # runtime image, so there is nothing to slim down here.
 RUN npm ci --no-audit --fund=false || npm install --no-audit --fund=false
 
+# tsconfig.base.json lives at the repository root and every app's tsconfig
+# extends ../../tsconfig.base.json, so the build cannot type-check without it.
+COPY tsconfig.base.json ./
 COPY frontend ./frontend
 RUN npm run build --workspaces --if-present
 
@@ -73,7 +76,10 @@ COPY --from=python-deps /opt/venv /opt/venv
 
 WORKDIR /app
 COPY --chown=curavia:curavia backend/ ./
-COPY --chown=curavia:curavia docs/permissions-matrix.yml /app/../docs/permissions-matrix.yml
+# settings.REPO_ROOT is BASE_DIR.parent, which is / in this image, so the
+# permissions matrix has to land at /docs. Spelled out rather than written
+# as /app/../docs, which is the same path but reads like a mistake.
+COPY --chown=curavia:curavia docs/permissions-matrix.yml /docs/permissions-matrix.yml
 COPY --chown=curavia:curavia infra/Procfile /app/Procfile
 COPY --from=frontend --chown=curavia:curavia /build/frontend/staff/dist ./static/staff
 COPY --from=frontend --chown=curavia:curavia /build/frontend/portal/dist ./static/portal
