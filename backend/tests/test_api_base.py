@@ -94,7 +94,13 @@ def test_the_mixin_sets_and_clears_the_scope_around_a_request() -> None:
     import inspect
 
     source = inspect.getsource(TenantScopedMixin)
-    assert "def initial" in source, "scope must be established in initial()"
+    # perform_authentication, not initial: DRF checks permissions inside
+    # initial(), so resolving there leaves the permission classes reading an
+    # empty tenant_permissions and refusing every caller.
+    assert "def perform_authentication" in source, (
+        "scope must be established in perform_authentication, between "
+        "authentication and the permission check"
+    )
     assert "def finalize_response" in source, "scope must be released after the response"
     assert "reset_scope" in source, "finalize_response must reset the contextvar"
     assert "finally" in source, "the reset must run even when the handler raised"

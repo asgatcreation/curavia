@@ -61,10 +61,21 @@ class TenantScopedMixin:
     #: Set by initial(), consumed by finalize_response().
     _scope_token: Any = None
 
-    def initial(self, request: Request, *args: Any, **kwargs: Any) -> None:
-        # Authenticates and checks permissions. Must run first: resolution
-        # needs to know who is calling.
-        super().initial(request, *args, **kwargs)  # type: ignore[misc]
+    def perform_authentication(self, request: Request) -> None:
+        """
+        Resolve the scope the moment the caller is known.
+
+        The timing is the whole point, and getting it wrong cost a CI run.
+        DRF's ``initial()`` runs ``perform_authentication`` and then
+        ``check_permissions``, so resolving in ``initial()`` — even first thing
+        — was still too late: the permission classes had already read an empty
+        ``request.tenant_permissions`` and returned 403 for every caller.
+
+        Overriding ``perform_authentication`` puts resolution exactly between
+        "we know who you are" and "here is what you may do", which is the only
+        window that works.
+        """
+        super().perform_authentication(request)  # type: ignore[misc]
         self._apply_scope(request)
 
     def _apply_scope(self, request: Request) -> None:

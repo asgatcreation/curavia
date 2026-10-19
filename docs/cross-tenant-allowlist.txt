@@ -34,3 +34,9 @@ backend/apps/core/api/views.py
 # Verifies every hospital's audit chain in one run, for cron. Reads only
 # hashes and sequence numbers, never clinical data.
 backend/apps/core/management/commands/verify_audit_chain.py
+
+# Resolves which hospital a caller is acting for. Working that out requires
+# reading their roles and branches, which is what establishes the scope - so it
+# cannot itself require a scope. Every read here is filtered explicitly to the
+# membership's own organisation.
+backend/apps/core/scope.py

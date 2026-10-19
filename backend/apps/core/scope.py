@@ -166,11 +166,18 @@ def _resolve_branch(
             return by_id[requested]
         if all_branches:
             # Someone holding branch.view_all may work in any branch of their
-            # own hospital — but still only their own hospital, so the lookup
-            # goes through the tenant-scoped manager.
+            # own hospital, including one they are not individually assigned to.
+            #
+            # Read through the unscoped manager, filtered explicitly to this
+            # membership's organisation. Like the role lookup in
+            # User.permission_codes, this is the bootstrap: it is what decides
+            # the scope, so it cannot require the scope to already be set. The
+            # organisation filter is what keeps it to their own hospital.
             from apps.core.models import Branch
 
-            branch = Branch.objects.filter(pk=requested).first()
+            branch = Branch.unscoped.filter(
+                pk=requested, organisation_id=membership.organisation_id
+            ).first()
             if branch is not None:
                 return branch
         logger.warning(
