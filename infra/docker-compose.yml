@@ -16,7 +16,12 @@ name: curavia
 
 services:
   postgres:
-    image: postgres:18-alpine
+    # postgres:18, not 18-alpine. CI uses the alpine variant because a fresh
+    # pull there is free; this machine already has postgres:18 locally from
+    # another project, so using the same tag costs no download and no extra
+    # disk. Same PostgreSQL 18, different base image — nothing Curavia relies
+    # on differs between them, and the locale is set explicitly below either way.
+    image: postgres:18
     container_name: curavia-postgres
     environment:
       POSTGRES_DB: curavia
@@ -29,7 +34,14 @@ services:
     ports:
       - "55432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # /var/lib/postgresql, NOT /var/lib/postgresql/data.
+      #
+      # PostgreSQL 18's official image changed this: it now stores data in a
+      # major-version subdirectory (/var/lib/postgresql/18/docker) so that
+      # `pg_upgrade --link` works without crossing a mount boundary. Mounting
+      # the old /data path makes the container refuse to start, complaining
+      # about "PostgreSQL data in /var/lib/postgresql/data (unused mount)".
+      - postgres-data:/var/lib/postgresql
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U curavia -d curavia"]
@@ -39,7 +51,8 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:8-alpine
+    # redis:8, for the same reason as postgres above.
+    image: redis:8
     container_name: curavia-redis
     # Persistence off: Redis here is a message bus and a cache, never a source
     # of truth. Everything durable lives in Postgres.

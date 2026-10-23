@@ -188,7 +188,13 @@ def _engine_hospital(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
         hospital = build_hospital(name="Matrix Test Hospital")
         staff = {role: hospital.staff(role) for role in MATRIX.roles}
-        yield hospital, staff
+        try:
+            yield hospital, staff
+        finally:
+            # This data is committed, not wrapped in a per-test transaction,
+            # so it survives every rollback and is visible to every later
+            # test unless it is removed explicitly.
+            hospital.destroy()
 
 
 @pytest.mark.parametrize(("entry", "role", "expected"), MATRIX.pairs(), ids=_ids(MATRIX.pairs()))

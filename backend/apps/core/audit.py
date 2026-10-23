@@ -43,6 +43,9 @@ from .utils import uuid7
 logger = logging.getLogger("curavia.audit")
 
 GENESIS_HASH = "0" * 64
+
+#: Rows read per round trip while verifying a chain. See verify_chain.
+VERIFY_BATCH_SIZE = 1000
 PLATFORM_CHAIN = "platform"
 
 
@@ -329,31 +332,51 @@ def verify_chain(organisation_id: uuid.UUID | str | None) -> tuple[int, str]:
     """
     key = chain_key_for(organisation_id)
     previous = GENESIS_HASH
-    count = 0
+    expected_sequence = 0
+    last_seen = 0
 
-    # organisation_id is None for the platform chain, which is a real lookup
-    # (organisation IS NULL) that django-stubs does not model.
-    queryset = (
-        AuditEvent.objects.filter(organisation_id=organisation_id)  # type: ignore[misc]
-        .order_by("sequence")
-        .iterator(chunk_size=500)
-    )
-    for expected_sequence, event in enumerate(queryset, start=1):
-        if event.sequence != expected_sequence:
-            raise ChainVerificationError(
-                key, event.sequence, f"expected sequence {expected_sequence} — a row is missing"
-            )
-        if event.prev_hash != previous:
-            raise ChainVerificationError(
-                key, event.sequence, "prev_hash does not match the previous row's hash"
-            )
-        recomputed = event.compute_hash()
-        if recomputed != event.hash:
-            raise ChainVerificationError(
-                key, event.sequence, "row contents do not match its stored hash"
-            )
-        previous = event.hash
-        count += 1
+    # Paged by sequence rather than with .iterator(chunk_size=...).
+    #
+    # .iterator() opens a server-side cursor on PostgreSQL, and this function
+    # raises the moment it finds a broken row — abandoning that cursor
+    # mid-read. The connection is then left waiting on rows nobody will
+    # fetch, and the next query on it blocks forever. Which means verification
+    # hung precisely when it found tampering: the one case it exists for.
+    #
+    # Keyset paging holds no cursor, is still memory-bounded, and reads each
+    # row exactly once.
+    while True:
+        # organisation_id is None for the platform chain, which is a real
+        # lookup (organisation IS NULL) that django-stubs does not model.
+        batch = list(
+            AuditEvent.objects.filter(  # type: ignore[misc]
+                organisation_id=organisation_id, sequence__gt=last_seen
+            ).order_by("sequence")[:VERIFY_BATCH_SIZE]
+        )
+        if not batch:
+            break
+
+        for event in batch:
+            expected_sequence += 1
+            if event.sequence != expected_sequence:
+                raise ChainVerificationError(
+                    key,
+                    event.sequence,
+                    f"expected sequence {expected_sequence} — a row is missing",
+                )
+            if event.prev_hash != previous:
+                raise ChainVerificationError(
+                    key, event.sequence, "prev_hash does not match the previous row's hash"
+                )
+            if event.compute_hash() != event.hash:
+                raise ChainVerificationError(
+                    key, event.sequence, "row contents do not match its stored hash"
+                )
+            previous = event.hash
+
+        last_seen = batch[-1].sequence
+
+    count = expected_sequence
 
     head = AuditChainHead.objects.filter(chain_key=key).first()
     if head and (head.sequence != count or head.head_hash != previous):

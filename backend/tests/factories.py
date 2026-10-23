@@ -169,6 +169,39 @@ class Hospital:
         user.save(update_fields=["last_organisation_id", "last_branch_id"])
         return user
 
+    def destroy(self) -> None:
+        """
+        Delete everything this hospital created, in dependency order.
+
+        Only needed by fixtures that build a hospital OUTSIDE pytest-django's
+        per-test transaction — a module-scoped fixture using
+        ``django_db_blocker.unblock()``. That data is committed and is NOT
+        rolled back between tests, so without this it is visible to every
+        later test in the run. It was: the isolation suite started seeing six
+        branches where it had created four.
+
+        The order matters because the foreign keys to Organisation are
+        PROTECT, deliberately — a hospital's records must not vanish because
+        something upstream was deleted.
+        """
+        from apps.core.audit import AuditChainHead, AuditEvent
+
+        organisation = self.organisation
+        with unscoped(reason="test teardown: remove a module-scoped hospital"):
+            AuditEvent.objects.filter(organisation=organisation).delete()
+            AuditChainHead.objects.filter(chain_key=f"org:{organisation.pk}").delete()
+
+            memberships = StaffMembership.unscoped.filter(organisation=organisation)
+            user_ids = list(memberships.values_list("user_id", flat=True))
+            memberships.delete()
+
+            User.objects.filter(pk__in=user_ids).delete()
+            Role.unscoped.filter(organisation=organisation).delete()
+            Department.unscoped.filter(organisation=organisation).delete()
+            Branch.unscoped.filter(organisation=organisation).delete()
+            Subscription.objects.filter(organisation=organisation).delete()
+            organisation.delete()
+
     def scope(self, branch: Branch | None = None, *, all_branches: bool = False):
         """``with hospital.scope():`` — act inside this hospital."""
         return tenant_scope(
@@ -192,8 +225,20 @@ def build_hospital(
     Two branches on purpose — one branch cannot catch a branch-scoping bug.
     """
     with unscoped(reason="test setup: build a hospital from scratch"):
+        # The slug carries a random suffix even when a name is given.
+        #
+        # A deterministic slug collides with itself: a module-scoped fixture
+        # that committed "matrix-test-hospital" and then crashed leaves that
+        # row behind, and with --reuse-db every later run fails on the unique
+        # constraint. Test data must not depend on the database being empty of
+        # previous runs.
+        overrides: dict[str, str] = {}
+        if name:
+            overrides["name"] = name
+            slug_base = name.lower().replace(" ", "-")
+            overrides["slug"] = f"{slug_base}-{uuid.uuid4().hex[:8]}"
         organisation = OrganisationFactory(
-            **({"name": name, "slug": name.lower().replace(" ", "-")} if name else {}),
+            **overrides,
             status=status,
             size_mode=size_mode,
         )

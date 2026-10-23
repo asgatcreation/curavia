@@ -55,9 +55,19 @@ def test_scoped_query_sees_only_its_own_hospital(hospital, other_hospital) -> No
     with other_hospital.scope():
         assert Branch.objects.count() == 2
 
-    # Both hospitals have branches called "Main Branch"; neither sees four.
+    # Both hospitals have a branch called "Main Branch"; neither sees four.
+    #
+    # Scoped to these two organisations rather than counting every branch in
+    # the database. A bare count() asserts "nothing else exists", which is a
+    # claim about the whole test run, not about tenant isolation — and it broke
+    # the moment another module's fixture committed a hospital of its own.
     with unscoped(reason="test: confirm both hospitals really do exist"):
-        assert Branch.unscoped.count() == 4
+        assert (
+            Branch.unscoped.filter(
+                organisation__in=[hospital.organisation, other_hospital.organisation]
+            ).count()
+            == 4
+        )
 
 
 def test_fetching_another_hospitals_row_by_its_id_fails(hospital, other_hospital) -> None:

@@ -210,3 +210,55 @@ def test_anchoring_records_the_chain_tip(hospital) -> None:
     assert anchor.sequence == 3
     head = AuditChainHead.objects.get(chain_key=f"org:{hospital.organisation.pk}")
     assert anchor.head_hash == head.head_hash
+
+
+def test_a_failed_verification_leaves_the_connection_usable(hospital) -> None:
+    """
+    The regression test for a bug that only appeared when it mattered.
+
+    ``verify_chain`` used ``.iterator(chunk_size=...)``, which opens a
+    server-side cursor on PostgreSQL, and then raised the moment it found a
+    broken row — abandoning that cursor mid-read. The connection was left
+    waiting for rows nobody would fetch, so the NEXT query on it blocked
+    forever. Verification hung precisely when it detected tampering, which is
+    the only situation it exists for.
+
+    It also only showed up when something else used the connection afterwards,
+    so the single test that triggered the break passed on its own and the suite
+    hung on the test after it.
+    """
+    with hospital.scope():
+        for _ in range(5):
+            audit.record("patient.view", object_type="Patient")
+
+        AuditEvent.objects.filter(sequence=3).delete()
+
+        with pytest.raises(ChainVerificationError):
+            audit.verify_chain(hospital.organisation.pk)
+
+        # The real assertion: the connection still works. Before the fix this
+        # blocked indefinitely rather than failing.
+        assert AuditEvent.objects.count() == 4
+        assert AuditChainHead.objects.filter(chain_key=f"org:{hospital.organisation.pk}").exists()
+
+        # And a fresh append still succeeds afterwards.
+        recovered = audit.record("patient.view", object_type="Patient")
+        assert recovered.sequence == 6
+
+
+def test_verification_pages_without_holding_a_cursor(hospital) -> None:
+    """
+    A chain longer than one batch is still walked correctly.
+
+    With keyset paging the batch boundary is where an off-by-one would hide,
+    so this crosses it deliberately.
+    """
+    from apps.core.audit import VERIFY_BATCH_SIZE
+
+    with hospital.scope():
+        for _ in range(VERIFY_BATCH_SIZE + 3):
+            audit.record("patient.view", object_type="Patient")
+
+        count, _head = audit.verify_chain(hospital.organisation.pk)
+
+    assert count == VERIFY_BATCH_SIZE + 3
