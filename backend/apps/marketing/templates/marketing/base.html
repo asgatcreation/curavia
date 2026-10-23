@@ -6,8 +6,14 @@
 <title>{{ page_title|default:"Curavia" }}</title>
 <meta name="description" content="{% block description %}Curavia is one system for your whole hospital: front desk, triage, consultation, laboratory, pharmacy, cashier and wards, handing patients to each other in real time.{% endblock %}">
 <meta name="theme-color" content="#0f766e">
-{# Milestone 2 ships a deliberately plain shell. The real visual direction is
-   milestone 3, where Tailwind is wired in properly rather than from a CDN. #}
+{% comment %}
+  Milestone 2 ships a deliberately plain shell. The real visual direction is
+  milestone 3, where Tailwind is wired in properly rather than from a CDN.
+
+  {% comment %}, not {# ... #}: Django's hash comment is single-line only, so a
+  two-line one is not a comment at all - it rendered as visible text above the
+  page header.
+{% endcomment %}
 <style>
   :root{
     --bg:#f8fafc; --surface:#ffffff; --border:#e2e8f0;
