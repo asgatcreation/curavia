@@ -3,172 +3,193 @@
  *
  * A hospital group's owner is not a clinician and is usually not on site.
  * The question is always the same: is each branch coping, and is the money
- * coming in. So the page answers those two in that order and refuses to
- * become a reporting suite.
+ * coming in.
+ *
+ * **It shows only what the system can actually measure, and says so about
+ * the rest.** Patients waiting, bed occupancy and money arrive at milestones
+ * 5, 8 and 10, so those tiles are drawn as "waiting for milestone N" rather
+ * than filled with a plausible figure. An owner decides whether to put a
+ * second doctor on a Tuesday from this screen; a number that looks real and
+ * is not would be worse than no screen, and once one tile is invented none
+ * of the others can be trusted.
  *
  * What it deliberately does NOT show: any patient's name. The owner role can
- * see counts, money and alerts across branches without opening a single
- * record, and the permission matrix enforces that separately. A dashboard
- * that leaks a patient name into a tooltip would make that boundary a lie.
- *
- * The chart is drawn as inline SVG rather than with a charting library. It is
- * one series of twelve bars; a dependency would be 60 kB to draw twelve
- * rectangles, and this version is readable by a screen reader because the
- * same numbers are in a table underneath.
+ * see counts, beds, staff and alerts across branches without opening a
+ * single record — and the endpoint behind this has nothing to leak.
  */
 
+import { useEffect, useState } from "react";
 import {
+  ApiRequestError,
   Badge,
   Card,
   CardHeader,
+  ReportingApi,
   SectionTitle,
   Stat,
   cn,
-  formatNaira,
-  waitTone,
 } from "@curavia/shared";
-import type { BranchRow } from "@curavia/shared";
-import {
-  DEMO_BRANCH_ROWS,
-  DEMO_ORGANISATION,
-  DEMO_PAYER_MIX,
-  DEMO_REVENUE_BY_HOUR,
-} from "@curavia/shared";
+import type { GroupAlert, GroupSummary, PendingMeasure } from "@curavia/shared";
 
+import { api } from "../api";
 import { IconWarning } from "../icons";
 
+const reporting = new ReportingApi(api);
+
 export function GroupDashboard() {
-  const revenue = DEMO_BRANCH_ROWS.reduce((sum, row) => sum + row.revenue_today_kobo, 0);
-  const outstanding = DEMO_BRANCH_ROWS.reduce((sum, row) => sum + row.outstanding_kobo, 0);
-  const waiting = DEMO_BRANCH_ROWS.reduce((sum, row) => sum + row.waiting, 0);
-  const beds = DEMO_BRANCH_ROWS.reduce(
-    (totals, row) => ({
-      occupied: totals.occupied + row.occupied_beds,
-      total: totals.total + row.total_beds,
-    }),
-    { occupied: 0, total: 0 },
-  );
-  const alerts = DEMO_BRANCH_ROWS.flatMap((row) =>
-    row.alerts.map((alert) => ({ branch: row.name, alert })),
-  );
+  const [data, setData] = useState<GroupSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void reporting
+      .group()
+      .then(setData)
+      .catch((caught: unknown) =>
+        setError(
+          caught instanceof ApiRequestError
+            ? caught.message
+            : "Could not load the dashboard. Check your connection.",
+        ),
+      );
+  }, []);
+
+  if (error) {
+    return (
+      <Shell>
+        <Card className="p-5">
+          <p className="flex items-start gap-2 text-sm text-critical-ink dark:text-critical">
+            <IconWarning className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
+        </Card>
+      </Shell>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Shell>
+        <p className="text-slate-500 dark:text-slate-400">Loading…</p>
+      </Shell>
+    );
+  }
+
+  const { totals } = data;
 
   return (
-    <div className="mx-auto w-full max-w-[90rem] space-y-5 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <SectionTitle>{DEMO_ORGANISATION.group}</SectionTitle>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Three branches · today, to {new Date().toLocaleTimeString("en-NG", {
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "Africa/Lagos",
-            })}{" "}
-            WAT
-          </p>
-        </div>
-        <Badge tone="neutral">No patient records on this screen</Badge>
-      </div>
-
+    <Shell
+      title={data.organisation.name}
+      subtitle={`${totals.branches} branch${totals.branches === 1 ? "" : "es"} · as at ${new Date(
+        data.as_of,
+      ).toLocaleTimeString("en-NG", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Africa/Lagos",
+      })} WAT`}
+    >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
-          label="Billed today"
-          value={formatNaira(revenue)}
-          tone="stable"
-          sub="Across all branches"
+          label="Staff on the system"
+          value={String(totals.staff_active)}
+          tone="info"
+          sub={
+            totals.invitations_open > 0
+              ? `${totals.invitations_open} invitation${totals.invitations_open === 1 ? "" : "s"} outstanding`
+              : "Everyone invited has joined"
+          }
         />
         <Stat
-          label="Outstanding"
-          value={formatNaira(outstanding)}
-          tone="warning"
-          sub="Unpaid bills and HMO claims"
+          label="Without two-factor"
+          value={String(totals.staff_without_mfa)}
+          tone={totals.staff_without_mfa > 0 ? "warning" : "stable"}
+          sub={totals.staff_without_mfa > 0 ? "Required before real patients" : "All enrolled"}
         />
-        <Stat label="Waiting now" value={String(waiting)} tone="info" sub="Patients in queues" />
         <Stat
-          label="Bed occupancy"
-          value={`${Math.round((beds.occupied / beds.total) * 100)}%`}
-          tone={beds.occupied / beds.total > 0.9 ? "critical" : "stable"}
-          sub={`${beds.occupied} of ${beds.total} beds`}
+          label="Services priced"
+          value={String(totals.services_priced)}
+          tone={totals.services_priced > 0 ? "stable" : "critical"}
+          sub={`${totals.payers} payer${totals.payers === 1 ? "" : "s"} besides self-pay`}
+        />
+        <Stat
+          label="Beds"
+          value={String(totals.beds)}
+          tone="neutral"
+          sub={`${totals.departments} department${totals.departments === 1 ? "" : "s"}`}
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {data.alerts.length > 0 && (
         <Card className="overflow-hidden">
-          <CardHeader title="Billed by hour" actions={<Badge tone="info">All branches</Badge>} />
-          <div className="p-4">
-            <RevenueChart />
-          </div>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <CardHeader title="Who is paying" />
-          <ul className="space-y-3 p-4">
-            {DEMO_PAYER_MIX.map((slice) => (
-              <li key={slice.payer}>
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="font-semibold text-slate-800 dark:text-slate-100">
-                    {slice.payer}
-                  </span>
-                  <span className="numeric font-bold text-slate-900 dark:text-white">
-                    {Math.round(slice.share * 100)}%
-                  </span>
-                </div>
-                <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      slice.tone === "info"
-                        ? "bg-info"
-                        : slice.tone === "stable"
-                          ? "bg-stable"
-                          : slice.tone === "warning"
-                            ? "bg-warning"
-                            : "bg-slate-400",
-                    )}
-                    style={{ width: `${slice.share * 100}%` }}
-                  />
-                </div>
-              </li>
+          <CardHeader title="Needs attention" count={data.alerts.length} />
+          <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+            {data.alerts.map((alert, index) => (
+              <AlertRow key={`${alert.message}-${index}`} alert={alert} />
             ))}
           </ul>
-          <p className="px-4 pb-4 text-xs text-slate-500 dark:text-slate-400">
-            HMO and NHIA money arrives weeks after the visit. The outstanding figure above is
-            mostly these two.
-          </p>
         </Card>
-      </div>
+      )}
 
       <Card className="overflow-hidden">
-        <CardHeader title="Branches" count={DEMO_BRANCH_ROWS.length} />
+        <CardHeader title="Branches" count={data.branches.length} />
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] border-collapse text-sm">
+          <table className="w-full min-w-[40rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-xs tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:text-slate-400">
                 <th scope="col" className="px-4 py-2 text-left font-bold">
                   Branch
                 </th>
                 <th scope="col" className="px-4 py-2 text-right font-bold">
-                  Waiting
+                  Departments
                 </th>
                 <th scope="col" className="px-4 py-2 text-right font-bold">
-                  Longest wait
+                  Wards
                 </th>
                 <th scope="col" className="px-4 py-2 text-right font-bold">
                   Beds
                 </th>
                 <th scope="col" className="px-4 py-2 text-right font-bold">
-                  On duty
-                </th>
-                <th scope="col" className="px-4 py-2 text-right font-bold">
-                  Billed today
-                </th>
-                <th scope="col" className="px-4 py-2 text-right font-bold">
-                  Outstanding
+                  Staff
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {DEMO_BRANCH_ROWS.map((row) => (
-                <BranchTableRow key={row.id} row={row} />
+              {data.branches.map((branch) => (
+                <tr key={branch.id}>
+                  <th scope="row" className="px-4 py-3 text-left">
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {branch.name}
+                    </span>
+                    {branch.is_main && (
+                      <Badge tone="info" className="ml-2">
+                        Main
+                      </Badge>
+                    )}
+                    {branch.state && (
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                        {branch.state}
+                      </span>
+                    )}
+                  </th>
+                  <td
+                    className={cn(
+                      "numeric px-4 py-3 text-right",
+                      branch.departments === 0
+                        ? "font-bold text-critical"
+                        : "text-slate-800 dark:text-slate-100",
+                    )}
+                  >
+                    {branch.departments}
+                  </td>
+                  <td className="numeric px-4 py-3 text-right text-slate-800 dark:text-slate-100">
+                    {branch.wards}
+                  </td>
+                  <td className="numeric px-4 py-3 text-right text-slate-800 dark:text-slate-100">
+                    {branch.beds}
+                  </td>
+                  <td className="numeric px-4 py-3 text-right text-slate-800 dark:text-slate-100">
+                    {branch.staff_active}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -176,134 +197,87 @@ export function GroupDashboard() {
       </Card>
 
       <Card className="overflow-hidden">
-        <CardHeader title="Needs attention" count={alerts.length} />
-        {alerts.length === 0 ? (
-          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Nothing outstanding.</p>
-        ) : (
-          <ul className="divide-y divide-slate-200 dark:divide-slate-800">
-            {alerts.map((item) => (
-              <li key={`${item.branch}-${item.alert}`} className="flex items-center gap-3 p-4">
-                <IconWarning className="size-5 shrink-0 text-warning" />
-                <span className="text-sm text-slate-800 dark:text-slate-100">{item.alert}</span>
-                <Badge tone="neutral" className="ml-auto">
-                  {item.branch}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
+        <CardHeader
+          title="Not measured yet"
+          count={data.pending.length}
+          actions={<Badge tone="neutral">No invented figures</Badge>}
+        />
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.pending.map((measure) => (
+            <PendingTile key={measure.key} measure={measure} />
+          ))}
+        </div>
+        <p className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          These are the tiles this screen is built for. Each needs the module that measures it,
+          and each appears here with a real number the week that module lands — rather than a
+          plausible one now.
+        </p>
       </Card>
+    </Shell>
+  );
+}
+
+function Shell({
+  title = "Group",
+  subtitle,
+  children,
+}: {
+  title?: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[90rem] space-y-5 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <SectionTitle>{title}</SectionTitle>
+          {subtitle && (
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+          )}
+        </div>
+        <Badge tone="neutral">No patient records on this screen</Badge>
+      </div>
+      {children}
     </div>
   );
 }
 
-function BranchTableRow({ row }: { row: BranchRow }) {
-  const occupancy = row.occupied_beds / row.total_beds;
-  const waitBand = waitTone(row.longest_wait_minutes);
+function AlertRow({ alert }: { alert: GroupAlert }) {
+  const colour =
+    alert.tone === "critical"
+      ? "text-critical"
+      : alert.tone === "warning"
+        ? "text-warning"
+        : "text-info";
 
   return (
-    <tr>
-      <th scope="row" className="px-4 py-3 text-left font-semibold text-slate-900 dark:text-white">
-        {row.name}
-      </th>
-      <td className="numeric px-4 py-3 text-right text-slate-800 dark:text-slate-100">
-        {row.waiting}
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span
-          className={cn(
-            "numeric font-semibold",
-            waitBand === "critical"
-              ? "text-critical"
-              : waitBand === "warning"
-                ? "text-warning-ink dark:text-warning"
-                : "text-slate-800 dark:text-slate-100",
-          )}
-        >
-          {Math.floor(row.longest_wait_minutes / 60)}h {row.longest_wait_minutes % 60}m
-        </span>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span
-          className={cn(
-            "numeric font-semibold",
-            occupancy > 0.9 ? "text-critical" : "text-slate-800 dark:text-slate-100",
-          )}
-        >
-          {row.occupied_beds}/{row.total_beds}
-        </span>
-      </td>
-      <td className="numeric px-4 py-3 text-right text-slate-800 dark:text-slate-100">
-        {row.staff_on_duty}
-      </td>
-      <td className="numeric px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">
-        {formatNaira(row.revenue_today_kobo)}
-      </td>
-      <td className="numeric px-4 py-3 text-right text-warning-ink dark:text-warning">
-        {formatNaira(row.outstanding_kobo)}
-      </td>
-    </tr>
+    <li className="flex flex-wrap items-center gap-3 p-4">
+      <IconWarning className={cn("size-5 shrink-0", colour)} />
+      <span className="min-w-0 flex-1 text-sm text-slate-800 dark:text-slate-100">
+        {alert.message}
+      </span>
+      {alert.branch && (
+        <Badge tone="neutral" className="ml-auto">
+          {alert.branch}
+        </Badge>
+      )}
+    </li>
   );
 }
 
-/**
- * Twelve bars, drawn to a viewBox so they scale to any width without
- * JavaScript measuring anything. The table underneath is not a fallback —
- * it is the accessible version, always rendered, visually hidden.
- */
-function RevenueChart() {
-  const peak = Math.max(...DEMO_REVENUE_BY_HOUR.map((point) => point.kobo));
-  const width = 100;
-  const height = 38;
-  const gap = 1.2;
-  const barWidth = (width - gap * (DEMO_REVENUE_BY_HOUR.length - 1)) / DEMO_REVENUE_BY_HOUR.length;
-
+function PendingTile({ measure }: { measure: PendingMeasure }) {
   return (
-    <figure className="m-0">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Amount billed each hour from 07:00 to 18:00, peaking at ₦754,200 at 10:00."
-        className="h-40 w-full sm:h-48"
-      >
-        {DEMO_REVENUE_BY_HOUR.map((point, index) => {
-          const barHeight = (point.kobo / peak) * height;
-          return (
-            <rect
-              key={point.hour}
-              x={index * (barWidth + gap)}
-              y={height - barHeight}
-              width={barWidth}
-              height={barHeight}
-              rx={0.8}
-              className="fill-brand-500 dark:fill-brand-400"
-            />
-          );
-        })}
-      </svg>
-
-      <div className="mt-1.5 flex justify-between text-xs text-slate-500 dark:text-slate-400">
-        {DEMO_REVENUE_BY_HOUR.map((point) => (
-          <span key={point.hour} className="numeric">
-            {point.hour}
-          </span>
-        ))}
-      </div>
-
-      <figcaption className="sr-only">
-        <table>
-          <caption>Amount billed by hour</caption>
-          <tbody>
-            {DEMO_REVENUE_BY_HOUR.map((point) => (
-              <tr key={point.hour}>
-                <th scope="row">{point.hour}:00</th>
-                <td>{formatNaira(point.kobo)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </figcaption>
-    </figure>
+    <div className="rounded-[var(--radius-card)] border border-dashed border-slate-300 p-4 dark:border-slate-700">
+      <p className="text-xs font-medium tracking-wide text-slate-500 uppercase dark:text-slate-400">
+        {measure.label}
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-300 dark:text-slate-600">—</p>
+      <p className="mt-1 text-xs font-semibold text-brand-700 dark:text-brand-300">
+        {measure.milestone}
+      </p>
+      {measure.note && (
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{measure.note}</p>
+      )}
+    </div>
   );
 }

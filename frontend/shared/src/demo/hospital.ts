@@ -508,80 +508,17 @@ export const DEMO_JOURNEY: JourneyRow[] = [
 ];
 
 // --------------------------------------------------------------------------
-// Group dashboard — the owner's view across branches
-// --------------------------------------------------------------------------
-
-export interface BranchRow {
-  id: string;
-  name: string;
-  waiting: number;
-  longest_wait_minutes: number;
-  occupied_beds: number;
-  total_beds: number;
-  revenue_today_kobo: number;
-  outstanding_kobo: number;
-  staff_on_duty: number;
-  alerts: string[];
-}
-
-export const DEMO_BRANCH_ROWS: BranchRow[] = [
-  {
-    id: "br-ikeja",
-    name: "Ikeja",
-    waiting: 14,
-    longest_wait_minutes: 96,
-    occupied_beds: 38,
-    total_beds: 46,
-    revenue_today_kobo: 2_847_500_00,
-    outstanding_kobo: 1_204_000_00,
-    staff_on_duty: 62,
-    alerts: ["Ferrous sulphate out of stock", "2 licences expire this month"],
-  },
-  {
-    id: "br-lekki",
-    name: "Lekki",
-    waiting: 6,
-    longest_wait_minutes: 24,
-    occupied_beds: 11,
-    total_beds: 20,
-    revenue_today_kobo: 1_356_200_00,
-    outstanding_kobo: 388_400_00,
-    staff_on_duty: 28,
-    alerts: [],
-  },
-  {
-    id: "br-abuja",
-    name: "Abuja (Wuse II)",
-    waiting: 9,
-    longest_wait_minutes: 51,
-    occupied_beds: 22,
-    total_beds: 24,
-    revenue_today_kobo: 1_902_900_00,
-    outstanding_kobo: 741_050_00,
-    staff_on_duty: 41,
-    alerts: ["Bed occupancy above 90%"],
-  },
-];
-
-/** Revenue by hour, in kobo. Twelve hours, 07:00 to 18:00. */
-export const DEMO_REVENUE_BY_HOUR: { hour: string; kobo: number }[] = [
-  { hour: "07", kobo: 182_000_00 },
-  { hour: "08", kobo: 421_500_00 },
-  { hour: "09", kobo: 688_000_00 },
-  { hour: "10", kobo: 754_200_00 },
-  { hour: "11", kobo: 612_800_00 },
-  { hour: "12", kobo: 498_000_00 },
-  { hour: "13", kobo: 356_400_00 },
-  { hour: "14", kobo: 512_900_00 },
-  { hour: "15", kobo: 604_300_00 },
-  { hour: "16", kobo: 538_700_00 },
-  { hour: "17", kobo: 489_100_00 },
-  { hour: "18", kobo: 247_700_00 },
-];
-
-export const DEMO_PAYER_MIX: { payer: string; share: number; tone: StatusTone }[] = [
-  { payer: "HMO", share: 0.42, tone: "info" },
-  { payer: "Self-pay", share: 0.31, tone: "stable" },
-  { payer: "NHIA", share: 0.18, tone: "warning" },
-  { payer: "Corporate", share: 0.09, tone: "neutral" },
-];
+// Group dashboard
+//
+// Nothing here any more, deliberately.
+//
+// The group dashboard now reads /api/v1/reporting/group/ and shows only what
+// the system can actually measure, with the rest named as "not measured yet"
+// and the milestone it arrives at. The fixtures that used to live here —
+// branch revenue, a billed-by-hour chart, a payer mix — were removed with
+// that change rather than left behind: a fixture that looks exactly like a
+// real API response is the easiest thing in a codebase to wire up by
+// accident, and an invented revenue figure on an owner's dashboard is the
+// one mistake this product cannot afford.
+//
+// They come back as real numbers with billing, at milestone 8.
