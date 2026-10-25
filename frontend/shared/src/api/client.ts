@@ -10,9 +10,13 @@
  * 2. **Errors have one shape.** The backend's exception handler guarantees
  *    `{detail, code, fields?}`, so `ApiRequestError` can carry field errors
  *    straight into react-hook-form without a per-endpoint adapter.
- * 3. **A 401 clears the session once, not per request.** Twelve parallel
- *    queries failing after a session times out should produce one redirect to
- *    the login screen, not twelve.
+ * 3. **A 401 refreshes once and retries, then gives up once.** The access
+ *    token lasts fifteen minutes, so a nurse who leaves a screen open through
+ *    a ward round comes back to an expired one. Without this, the first thing
+ *    she touches throws her out — which is both infuriating and, worse,
+ *    trains people to keep a second tab signed in. Twelve parallel queries
+ *    failing at once share ONE refresh between them and produce one redirect
+ *    to the login screen, not twelve.
  */
 
 import type { ApiError, Me } from "./types";
@@ -48,6 +52,15 @@ export interface ApiClientOptions {
   onUnauthenticated?: () => void;
 }
 
+/**
+ * Paths that must never trigger a refresh-and-retry.
+ *
+ * The refresh endpoint itself, obviously — retrying it on a 401 would
+ * recurse. And the login endpoints, where a 401 means "wrong password" and is
+ * the answer, not a failure to be worked around.
+ */
+const NO_RETRY = ["/auth/refresh/", "/auth/login/", "/auth/login/mfa/"];
+
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly onUnauthenticated: (() => void) | undefined;
@@ -55,6 +68,9 @@ export class ApiClient {
   private branchId: string | null = null;
   private organisationId: string | null = null;
   private unauthenticatedNotified = false;
+  private refreshToken: (() => Promise<boolean>) | null = null;
+  /** The one in-flight refresh, shared by every request waiting on it. */
+  private refreshing: Promise<boolean> | null = null;
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -64,6 +80,16 @@ export class ApiClient {
   setAccessToken(token: string | null): void {
     this.accessToken = token;
     if (token) this.unauthenticatedNotified = false;
+  }
+
+  /**
+   * Teach the client how to get a new access token.
+   *
+   * Set by the auth layer at boot. Without it a 401 is simply a 401, which is
+   * the correct behaviour for anything that is not a signed-in staff app.
+   */
+  setTokenRefresher(refresh: (() => Promise<boolean>) | null): void {
+    this.refreshToken = refresh;
   }
 
   /**
@@ -77,7 +103,7 @@ export class ApiClient {
     this.branchId = branchId;
   }
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, allowRetry = true): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (init.body && !headers.has("Content-Type")) {
@@ -99,6 +125,14 @@ export class ApiClient {
     });
 
     if (response.status === 401) {
+      // One attempt to refresh, then one attempt at the original request.
+      // `init.body` is always a JSON string here, never a stream, so
+      // replaying it is safe.
+      const retryable = allowRetry && this.refreshToken && !NO_RETRY.some((p) => path.startsWith(p));
+      if (retryable && (await this.refreshOnce())) {
+        return this.request<T>(path, init, false);
+      }
+
       this.accessToken = null;
       if (!this.unauthenticatedNotified) {
         this.unauthenticatedNotified = true;
@@ -115,6 +149,21 @@ export class ApiClient {
       throw new ApiRequestError(response.status, body as Partial<ApiError>);
     }
     return body as T;
+  }
+
+  /**
+   * Refresh, with every caller that arrived during the attempt sharing it.
+   *
+   * Without the shared promise, a screen that fires six queries on mount
+   * would send six refreshes — and since the server rotates refresh tokens,
+   * five of them would be using an already-blacklisted token and would sign
+   * the user out.
+   */
+  private refreshOnce(): Promise<boolean> {
+    this.refreshing ??= (this.refreshToken?.() ?? Promise.resolve(false)).finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
   }
 
   get<T>(path: string): Promise<T> {

@@ -18,6 +18,7 @@ See docs/01-data-model.md §1.
 from __future__ import annotations
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
@@ -387,3 +388,82 @@ class SupportAccessGrant(TenantScoped):
     @property
     def is_live(self) -> bool:
         return self.revoked_at is None and self.expires_at > timezone.now()
+
+
+# --------------------------------------------------------------------------
+# Beds
+# --------------------------------------------------------------------------
+
+
+class Bed(BranchScoped):
+    """
+    One bed, in a ward.
+
+    A ward is a ``Department`` with ``kind=WARD`` rather than a model of its
+    own. That is deliberate: a ward already has everything a department has —
+    a name, a code, a branch, staff assigned to it — and a parallel hierarchy
+    would mean two places to look for "where in this hospital" and two sets of
+    code to keep in step.
+
+    The bed itself is a real row because the things a hospital asks of it are
+    per-bed: is this one free, who is in it, how long has it been occupied,
+    what does a night in it cost. A count on the ward cannot answer any of
+    those.
+
+    ``is_occupied`` is NOT a column. Occupancy is derived from admissions,
+    which arrive with the inpatient module at milestone 10 — a stored flag
+    would be a second source of truth for where a patient is, and the two
+    would disagree the first time an admission was cancelled.
+    """
+
+    class Kind(models.TextChoices):
+        GENERAL = "general", _("General ward bed")
+        PRIVATE = "private", _("Private room")
+        AMENITY = "amenity", _("Amenity / semi-private")
+        ICU = "icu", _("Intensive care")
+        HDU = "hdu", _("High dependency")
+        LABOUR = "labour", _("Labour / delivery")
+        RECOVERY = "recovery", _("Recovery")
+        COT = "cot", _("Cot / incubator")
+        DAY_CASE = "day_case", _("Day case")
+
+    ward = models.ForeignKey(
+        "core.Department",
+        on_delete=models.PROTECT,
+        related_name="beds",
+        help_text=_("Must be a department of kind 'ward'."),
+    )
+    name = models.CharField(max_length=40, help_text=_("What is written on the bed, e.g. A3"))
+    kind = models.CharField(max_length=16, choices=Kind, default=Kind.GENERAL)
+    #: Integer kobo, like every other amount. Null means "not chargeable by
+    #: the night" — a day-case trolley, for instance.
+    nightly_rate_kobo = models.BigIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(
+        default=True, help_text=_("Switch off a bed that is broken or being deep-cleaned.")
+    )
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("bed")
+        ordering = ("ward__name", "name")
+        constraints = [
+            models.UniqueConstraint(fields=["ward", "name"], name="unique_bed_name_per_ward")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ward.name} · {self.name}"
+
+    def clean(self) -> None:
+        super().clean()
+        # Checked here as well as in the serialiser: a bed in a laboratory is
+        # the kind of mistake that is cheap to prevent and confusing to find
+        # six months later on a bed board.
+        if self.ward_id and self.ward.kind != Department.Kind.WARD:
+            raise ValidationError(
+                {
+                    "ward": _("Beds belong to a ward. %(name)s is a %(kind)s.")
+                    % {"name": self.ward.name, "kind": self.ward.get_kind_display().lower()}
+                }
+            )
+        if self.ward_id and self.branch_id and self.ward.branch_id != self.branch_id:
+            raise ValidationError({"ward": _("That ward is at a different branch from this bed.")})

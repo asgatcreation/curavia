@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     # Curavia
     "apps.core",
     "apps.accounts",
+    "apps.catalogue",
     "apps.onboarding",
     "apps.platformadmin",
     "apps.marketing",

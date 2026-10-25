@@ -215,7 +215,11 @@ function TopBar() {
 
       {/* Search is the front desk's primary tool, so it gets real width on
           desktop and collapses to an icon-sized field on a phone. */}
-      <label className="relative ml-auto hidden min-w-0 flex-1 sm:block sm:max-w-xs">
+      {/* lg and up only. Below that the branch control, the theme toggle and
+          the user menu already fill the bar, and a search field squeezed to
+          sixty pixels is worse than no search field — the one on the front
+          desk screen is the one clerks actually use. */}
+      <label className="relative ml-auto hidden min-w-0 w-56 lg:block">
         <span className="sr-only">Search patients</span>
         <IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
         <input
@@ -238,8 +242,8 @@ function UserMenu({ me }: { me: Me | null }) {
   const jobTitle = me?.memberships[0]?.job_title ?? "";
 
   return (
-    <span className="flex items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
-      <span className="hidden max-w-40 text-right leading-tight sm:block">
+    <span className="flex shrink-0 items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+      <span className="hidden max-w-40 text-right leading-tight xl:block">
         <span className="block truncate text-xs font-semibold text-slate-900 dark:text-white">
           {name}
         </span>
@@ -309,7 +313,7 @@ function BranchSwitcher({ me }: { me: Me | null }) {
       // shrink-0: without it the search field beside this one, which grows,
       // squeezes the hospital's name down to three characters. The search box
       // can give up space; knowing which building you are in cannot.
-      <span className="max-w-[40vw] shrink-0 truncate rounded-full bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900 ring-1 ring-brand-200 ring-inset sm:max-w-xs dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-700">
+      <span className="min-w-0 flex-1 truncate rounded-full bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-900 ring-1 ring-brand-200 ring-inset lg:max-w-xs lg:flex-none dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-700">
         {organisation} · {branches[0]?.name}
       </span>
     );
@@ -320,7 +324,7 @@ function BranchSwitcher({ me }: { me: Me | null }) {
     // branch name, which is wider than a phone, and a select sizes itself to
     // its widest option. Without a cap it pushed the theme toggle and the
     // avatar off the right-hand edge of the screen.
-    <label className="relative max-w-[40vw] shrink-0 sm:max-w-xs">
+    <label className="relative min-w-0 flex-1 lg:max-w-xs lg:flex-none">
       <span className="sr-only">Branch</span>
       <select
         value={current}
@@ -353,9 +357,7 @@ function ThemeToggle() {
     <div
       role="group"
       aria-label="Colour theme"
-      // ml-auto below sm, where the search field it normally sits beside is
-      // hidden and there is nothing else to push it right.
-      className="ml-auto flex shrink-0 items-center gap-0.5 rounded-full bg-slate-100 p-0.5 sm:ml-0 dark:bg-slate-800"
+      className="flex shrink-0 items-center gap-0.5 rounded-full bg-slate-100 p-0.5 dark:bg-slate-800"
     >
       {THEMES.map((option) => (
         <button

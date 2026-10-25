@@ -15,6 +15,7 @@ from django.apps import apps
 from rest_framework.test import APIClient
 
 from apps.core.models import TenantScoped
+from apps.core.modules import SizeMode
 from apps.core.tenancy import TenantManager, UnscopedManager
 
 from .factories import Hospital, build_hospital, build_platform_staff
@@ -68,6 +69,18 @@ def _reset_permission_cache() -> Iterator[None]:
 def hospital(db) -> Hospital:
     """Lifeline-style hospital: two branches, every role, everything enabled."""
     return build_hospital(name="Lifeline Test Hospital")
+
+
+@pytest.fixture
+def hospital_solo(db) -> Hospital:
+    """
+    A one-doctor practice.
+
+    Separate from `hospital` because the module and template filtering only
+    shows its teeth at the small end: a solo clinic must never be offered a
+    ward, a theatre or a mortuary register.
+    """
+    return build_hospital(name="Solo Test Practice", size_mode=SizeMode.SOLO)
 
 
 @pytest.fixture

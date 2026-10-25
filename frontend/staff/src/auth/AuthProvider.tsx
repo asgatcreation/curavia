@@ -36,6 +36,13 @@ export function AuthProvider({ client, children }: { client: ApiClient; children
 
   const auth = useMemo(() => new AuthApi(client), [client]);
 
+  // Let the client refresh and retry on a 401, rather than throwing the user
+  // out the first time an access token ages out mid-shift.
+  useEffect(() => {
+    client.setTokenRefresher(() => auth.refresh());
+    return () => client.setTokenRefresher(null);
+  }, [auth, client]);
+
   const load = useCallback(async (): Promise<Me> => {
     const profile = await client.me();
     // Before anything else reads it: every subsequent request must carry the

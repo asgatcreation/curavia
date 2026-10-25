@@ -30,6 +30,7 @@ import { GroupDashboard } from "./screens/GroupDashboard";
 import { JourneyBoard } from "./screens/JourneyBoard";
 import { NoAccess } from "./screens/NoAccess";
 import { Pharmacy } from "./screens/Pharmacy";
+import { SetupWizard } from "./screens/setup/SetupWizard";
 import { SignIn } from "./screens/auth/SignIn";
 import { SignUp } from "./screens/auth/SignUp";
 import { VerifyEmail } from "./screens/auth/VerifyEmail";
@@ -74,8 +75,45 @@ function Gate() {
 
   return (
     <AppShell>
-      <Outlet />
+      <SetupGate>
+        <Outlet />
+      </SetupGate>
     </AppShell>
+  );
+}
+
+/**
+ * A hospital that has not finished setup has nothing to show anybody.
+ *
+ * The front desk of a hospital with no departments, services or prices is a
+ * screen full of empty lists that looks broken. So whoever can finish setup
+ * is sent to finish it, and everybody else is told plainly that the hospital
+ * is not ready — rather than being dropped into the emptiness and left to
+ * conclude the product does not work.
+ */
+function SetupGate({ children }: { children: React.ReactNode }) {
+  const { me } = useAuth();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  if (!me || me.setup_complete || path === "/setup") return <>{children}</>;
+
+  const canSetUp = me.permissions.includes("org.settings.change");
+  return canSetUp ? <SetupWizard /> : <SetupPending />;
+}
+
+function SetupPending() {
+  const { me } = useAuth();
+  return (
+    <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
+      <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
+        {me?.organisation?.name ?? "This hospital"} is still being set up
+      </h1>
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+        Departments, services and prices have not been entered yet, so the screens you work from
+        would be empty. Whoever administers Curavia here can finish setting it up — it takes a
+        few minutes.
+      </p>
+    </div>
   );
 }
 
@@ -90,7 +128,9 @@ function ShellWithLanding() {
   const Screen = SCREENS[me?.landing ?? "/"] ?? FrontDesk;
   return (
     <AppShell>
-      <Screen />
+      <SetupGate>
+        <Screen />
+      </SetupGate>
     </AppShell>
   );
 }
@@ -103,6 +143,7 @@ const SCREENS: Record<string, () => React.JSX.Element> = {
   "/journey": JourneyBoard,
   "/group": GroupDashboard,
   "/no-access": NoAccess,
+  "/setup": SetupWizard,
 };
 
 function Splash() {
@@ -125,6 +166,7 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/journey", component: JourneyBoard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/group", component: GroupDashboard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/no-access", component: NoAccess }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/setup", component: SetupWizard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-in", component: SignIn }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-up", component: SignUp }),
   createRoute({ getParentRoute: () => rootRoute, path: "/verify-email", component: VerifyEmail }),
