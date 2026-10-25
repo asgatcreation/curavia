@@ -1,0 +1,144 @@
+/*
+ * Curavia design tokens — the single source of colour, shape and type for the
+ * staff app, the patient portal and the marketing site.
+ *
+ * Three rules this file exists to enforce:
+ *
+ * 1. Clinical status is never carried by hue alone. Every status token has a
+ *    matching shape or label in the component that uses it, because roughly
+ *    one Nigerian man in twenty cannot separate red from green, and a triage
+ *    board that depends on that is a safety problem, not a styling one.
+ *
+ * 2. Touch targets are sized for a tablet held at a ward door by someone
+ *    wearing gloves. --size-touch is the floor for anything tappable.
+ *
+ * 3. Dark mode is not an inversion. Wards run dim at night and screens are
+ *    often the brightest object in the room, so the dark surfaces are warm
+ *    navy rather than black, and text is held below pure white to stop the
+ *    halo that makes small type bloom.
+ */
+
+/*
+ * Dark mode is the operating system's choice unless the reader overrides it.
+ *
+ * Tailwind 4's stock `dark:` variant is media-query only, which cannot be
+ * overridden from a toggle, and its documented class strategy is attribute
+ * only, which ignores the OS. Night staff need the OS default to work and day
+ * staff on a shared ward machine need to be able to force light, so the
+ * variant answers to both: the media query wins unless [data-theme] says
+ * otherwise, and [data-theme="dark"] wins regardless.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme="light"], [data-theme="light"] *)) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+}
+
+@theme {
+  /* ---------------------------------------------------------------
+   * Brand — teal. Matches the marketing site's #0f766e exactly.
+   * ------------------------------------------------------------- */
+  --color-brand-50: oklch(0.97 0.02 180);
+  --color-brand-100: oklch(0.94 0.04 180);
+  --color-brand-200: oklch(0.88 0.06 180);
+  --color-brand-300: oklch(0.79 0.08 180);
+  --color-brand-400: oklch(0.67 0.1 180);
+  --color-brand-500: oklch(0.55 0.11 180);
+  --color-brand-600: oklch(0.48 0.1 180);
+  --color-brand-700: oklch(0.41 0.09 180);
+  --color-brand-800: oklch(0.34 0.07 180);
+  --color-brand-900: oklch(0.27 0.05 180);
+
+  /* ---------------------------------------------------------------
+   * Clinical status.
+   *
+   * Picked so the four are separable in deuteranopia and protanopia as
+   * well as in normal vision: critical is held far round towards red,
+   * stable sits at a green-cyan rather than a pure green, and the two
+   * middle steps differ in lightness as much as in hue. Always paired
+   * with a label or a shape in the component.
+   * ------------------------------------------------------------- */
+  --color-critical: oklch(0.55 0.21 25);
+  --color-critical-soft: oklch(0.95 0.03 25);
+  --color-critical-ink: oklch(0.38 0.16 25);
+
+  --color-urgent: oklch(0.65 0.18 48);
+  --color-urgent-soft: oklch(0.96 0.04 60);
+  --color-urgent-ink: oklch(0.45 0.14 48);
+
+  --color-warning: oklch(0.72 0.16 70);
+  --color-warning-soft: oklch(0.97 0.04 85);
+  --color-warning-ink: oklch(0.48 0.12 70);
+
+  --color-stable: oklch(0.6 0.13 155);
+  --color-stable-soft: oklch(0.95 0.04 155);
+  --color-stable-ink: oklch(0.41 0.11 155);
+
+  --color-info: oklch(0.58 0.14 250);
+  --color-info-soft: oklch(0.95 0.03 250);
+  --color-info-ink: oklch(0.42 0.13 250);
+
+  /* ---------------------------------------------------------------
+   * Shape and motion
+   * ------------------------------------------------------------- */
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
+
+  /* The floor for anything a gloved finger has to hit on a ward tablet. */
+  --size-touch: 2.75rem;
+
+  /* Tabular numerals everywhere a number is compared down a column:
+   * doses, amounts, vitals, bed numbers. */
+  --font-numeric: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+
+@layer base {
+  /* Native scrollbars, date pickers and select menus follow the same choice
+     the page does, otherwise a forced-light page sprouts dark dropdowns. */
+  :root {
+    color-scheme: light dark;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+    @apply dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  /* Clerks and doctors work by keyboard: tab order must always be visible. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-600 dark:outline-brand-400;
+  }
+
+  /* Numbers that get compared down a column must not jitter between rows. */
+  .numeric {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

@@ -4,8 +4,21 @@
     {
       "name": "curavia-backend",
       "runtimeExecutable": "backend/.venv/Scripts/python.exe",
-      "runtimeArgs": ["backend/manage.py", "runserver", "8010"],
+      "runtimeArgs": [
+        "backend/manage.py",
+        "runserver",
+        "8010"
+      ],
       "port": 8010
+    },
+    {
+      "name": "curavia-staff",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:staff"
+      ],
+      "port": 5173
     }
   ]
 }

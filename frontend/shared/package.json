@@ -7,7 +7,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./api": "./src/api/index.ts"
+    "./api": "./src/api/index.ts",
+    "./ui": "./src/ui/index.ts",
+    "./tokens.css": "./src/ui/tokens.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -16,6 +18,10 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/react": "19.3.0",
     "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "react": ">=19"
   }
 }

@@ -1,50 +1,265 @@
 {% extends "marketing/base.html" %}
 
+{% block head %}
+<style>
+  /* ----------------------------------------------------------------
+   * Home page only. Kept here rather than in base.html so the legal
+   * pages do not carry a stylesheet for a layout they never use.
+   * ---------------------------------------------------------------- */
+  .hero { padding-block: clamp(3rem, 2rem + 5vw, 6rem) clamp(2rem, 1.5rem + 3vw, 4rem); }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
+  .hero-proof {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
+    margin-top: 2rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.875rem; color: var(--faint);
+  }
+  .hero-proof b { color: var(--text); font-weight: 700; }
+
+  /* The handover strip: the product's single claim, drawn.
+     Six departments, one patient, arrows between them. */
+  .flow {
+    display: grid; gap: 0.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    counter-reset: step;
+  }
+  @media (min-width: 46rem) { .flow { grid-template-columns: repeat(6, 1fr); } }
+  .flow-step {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    padding: 0.875rem 0.75rem;
+  }
+  .flow-step::before {
+    counter-increment: step;
+    content: counter(step);
+    display: grid; place-items: center;
+    width: 1.5rem; height: 1.5rem; margin-bottom: 0.5rem;
+    border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--accent-line);
+    font-size: 0.75rem; font-weight: 800;
+  }
+  .flow-step b { display: block; font-size: 0.9375rem; }
+  .flow-step span { display: block; font-size: 0.8125rem; color: var(--faint); margin-top: 0.125rem; }
+
+  .module-card { display: flex; flex-direction: column; gap: 0.25rem; }
+  .module-card p { font-size: 0.875rem; color: var(--faint); }
+
+  .fact { display: flex; gap: 0.75rem; align-items: flex-start; }
+  .fact-mark {
+    flex: none; display: grid; place-items: center;
+    width: 1.5rem; height: 1.5rem; margin-top: 0.125rem;
+    border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--accent-line);
+    font-size: 0.8125rem; font-weight: 900;
+  }
+  .fact p { font-size: 0.9375rem; color: var(--muted); }
+  .fact b { color: var(--text); }
+
+  .cta {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+    box-shadow: var(--shadow);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>One system for your whole hospital.</h1>
-<p class="lede">
-  Front desk, triage, consultation, laboratory, radiology, pharmacy, cashier and
-  wards &mdash; every department in one place, handing patients to each other as it
-  happens. When a doctor prescribes, the pharmacist on seat sees it instantly, with
-  allergies, interactions and stock already checked.
-</p>
 
-<div class="note">
-  <strong>This is a development build.</strong> Milestone 2 of the build plan ships the
-  foundations: multi-hospital tenancy, staff accounts with mandatory two-factor
-  authentication, roles and object-level permissions, and a hash-chained audit log.
-  The marketing site and the hospital screens are built out in later milestones.
-</div>
+<!-- ================================================================
+     Hero
+     ================================================================ -->
+<section class="hero">
+  <div class="wrap">
+    <p class="pill">Built for Nigerian hospitals</p>
+    <h1 style="margin-top:1rem">One system for your whole hospital.</h1>
+    <p class="lede" style="margin-top:1.25rem">
+      Front desk, triage, consultation, laboratory, radiology, pharmacy, cashier and
+      wards &mdash; every department in one place, handing patients to each other as it
+      happens. When a doctor prescribes, the pharmacist on seat sees it instantly, with
+      allergies, interactions and stock already checked.
+    </p>
 
-<h2>Modules</h2>
-<p>Switched on per hospital, so a solo clinic is never shown ward and theatre screens it will never use.</p>
-<div class="grid">
-  {% for module in modules %}
-  <div class="card">
-    <h3>{{ module.label }}</h3>
-    <p>{{ module.description }}</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="/legal/security/">See how it is built</a>
+      <a class="btn btn-secondary" href="/api/docs/">Read the API</a>
+    </div>
+
+    <div class="hero-proof">
+      <span><b>{{ modules|length }}</b> modules, switched on per hospital</span>
+      <span><b>Multi-branch</b> from the first day</span>
+      <span><b>Naira</b>, stored as whole kobo</span>
+      <span><b>Audited</b> &mdash; every view, not just every change</span>
+    </div>
   </div>
-  {% endfor %}
-</div>
+</section>
 
-<h2>Built for Nigerian practice</h2>
-<p>
-  Prices in naira, stored as whole kobo so nothing is ever lost to rounding.
-  NAFDAC numbers, batches and expiry dates on every medicine. HMO and NHIA tariffs,
-  pre-authorisation codes and claim batches. The national immunisation schedule.
-  Times in West Africa Time. Verification against CAC registration, a state Ministry
-  of Health facility licence and the medical director's MDCN number before a hospital
-  goes live.
-</p>
+<!-- ================================================================
+     The handover — the single claim, drawn
+     ================================================================ -->
+<section style="background:var(--surface-2); border-block:1px solid var(--border)">
+  <div class="wrap">
+    <p class="section-label">One patient, one record</p>
+    <h2>The handover is the product.</h2>
+    <p class="lede" style="margin-top:0.75rem; margin-bottom:2rem">
+      Most hospital software is a filing cabinet with a login. The expensive problem in a
+      real hospital is not storing the record &mdash; it is the half hour a patient spends
+      walking a paper slip from one department to the next, and the prescription that
+      reaches the pharmacy after the patient does.
+    </p>
 
-<h2>Privacy by construction</h2>
-<p>
-  Each hospital's records are unreachable from any other, enforced in the database and
-  proved by a test suite that deliberately attempts to cross the boundary. Every view
-  and every change of a patient record is written to an append-only, hash-chained audit
-  log. Curavia's own staff cannot open a hospital's records at all unless that hospital
-  grants time-limited access &mdash; and everything done under that grant is recorded
-  where the hospital can see it.
-</p>
-<p><a href="/legal/security/">Read how it works &rarr;</a></p>
+    <ol class="flow" style="list-style:none; padding:0; margin:0">
+      <li class="flow-step"><b>Front desk</b><span>Registered, token issued</span></li>
+      <li class="flow-step"><b>Triage</b><span>Vitals, early warning score</span></li>
+      <li class="flow-step"><b>Doctor</b><span>Notes, diagnosis, orders</span></li>
+      <li class="flow-step"><b>Laboratory</b><span>Sample, result, critical flag</span></li>
+      <li class="flow-step"><b>Pharmacy</b><span>Checked against allergies</span></li>
+      <li class="flow-step"><b>Cashier</b><span>Bill, payer, receipt</span></li>
+    </ol>
+
+    <div class="note" style="margin-top:1.5rem">
+      <strong>Nothing is typed twice.</strong> The triage nurse's vitals are already on the
+      doctor's screen. The doctor's prescription is already in the pharmacy queue, with the
+      patient's allergies checked and the stock position known. The bill is already at the
+      cashier, priced for that patient's HMO. The journey board shows where every patient
+      in the building is standing right now.
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     Modules
+     ================================================================ -->
+<section id="modules">
+  <div class="wrap">
+    <p class="section-label">Modules</p>
+    <h2>Pay for the departments you have.</h2>
+    <p class="lede" style="margin-top:0.75rem; margin-bottom:2rem">
+      Switched on per hospital, so a solo clinic is never shown ward, theatre and mortuary
+      screens it will never use &mdash; and a 200-bed hospital is never told to buy a
+      second system for the ones it does.
+    </p>
+
+    <div class="grid grid-2 grid-3 grid-4">
+      {% for module in modules %}
+      <article class="card module-card">
+        <h3>{{ module.label }}</h3>
+        <p>{{ module.description }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     Nigerian practice
+     ================================================================ -->
+<section style="background:var(--surface-2); border-block:1px solid var(--border)">
+  <div class="wrap">
+    <p class="section-label">Built here, not translated</p>
+    <h2>It already knows how a Nigerian hospital works.</h2>
+
+    <div class="grid grid-2" style="margin-top:2rem">
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&#8358;</span>
+        <p><b>Money in naira, stored as whole kobo.</b> Never a floating-point number,
+          so nothing is ever lost to rounding across a day of bills.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&check;</span>
+        <p><b>HMO, NHIA and corporate schemes.</b> Enrolee checks, tariffs per payer,
+          pre-authorisation codes and claim batches &mdash; not a single "insurance" field.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&check;</span>
+        <p><b>NAFDAC numbers, batches and expiry dates</b> on every medicine, with stock
+          held as a ledger so a count can always be explained.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&check;</span>
+        <p><b>The national immunisation schedule</b> in the child-health module, and
+          antenatal care that follows the way clinics actually book it.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&check;</span>
+        <p><b>West Africa Time everywhere</b>, and phone numbers in the format your
+          patients actually give you.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-mark" aria-hidden="true">&check;</span>
+        <p><b>Verified before going live:</b> CAC registration, a state Ministry of Health
+          facility licence, and the medical director's MDCN number.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     Privacy
+     ================================================================ -->
+<section>
+  <div class="wrap">
+    <p class="section-label">Privacy by construction</p>
+    <h2>A hospital's records are its own.</h2>
+
+    <div class="grid grid-3" style="margin-top:2rem">
+      <article class="card">
+        <h3>No hospital can reach another's data</h3>
+        <p style="margin-top:0.5rem; color:var(--muted); font-size:0.9375rem">
+          Enforced at the database layer, not remembered by each developer. A query without a
+          hospital in scope raises an error rather than returning everything &mdash; and a
+          test suite deliberately attacks the boundary on every push.
+        </p>
+      </article>
+      <article class="card">
+        <h3>Every view is audited, not just every change</h3>
+        <p style="margin-top:0.5rem; color:var(--muted); font-size:0.9375rem">
+          Opening a record is itself recorded, in an append-only log chained with SHA-256
+          so an altered or deleted entry can be detected. A hospital can prove who looked
+          at a file.
+        </p>
+      </article>
+      <article class="card">
+        <h3>Curavia's own staff cannot read your records</h3>
+        <p style="margin-top:0.5rem; color:var(--muted); font-size:0.9375rem">
+          Not as a policy &mdash; as a permission. Support access needs a time-limited grant
+          the hospital issues, and everything done under it is written to the hospital's own
+          audit log.
+        </p>
+      </article>
+    </div>
+
+    <p style="margin-top:1.5rem">
+      <a href="/legal/security/">How each of these is actually implemented &rarr;</a>
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================
+     Status
+     ================================================================ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="cta">
+      <p class="pill">In development</p>
+      <h2 style="margin-top:1rem">Milestone 3 of 15.</h2>
+      <p class="lede" style="margin-top:0.75rem">
+        The foundations are finished and tested: multi-hospital tenancy, staff accounts with
+        mandatory two-factor authentication, a 64-permission role engine and a hash-chained
+        audit log, under 2,500 passing tests. The clinical modules are being built in order,
+        front desk first.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/asgatcreation/curavia">Follow the build on GitHub</a>
+        <a class="btn btn-secondary" href="/api/docs/">Read the API</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 {% endblock %}
