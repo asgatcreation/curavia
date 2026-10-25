@@ -22,7 +22,6 @@ from django.utils import timezone
 from apps.accounts.models import PlatformRole, Role, StaffMembership, User
 from apps.accounts.role_templates import (
     PLATFORM_ROLE_TEMPLATES,
-    ROLE_TEMPLATES,
     ROLE_TEMPLATES_BY_SLUG,
 )
 from apps.core.models import (
@@ -33,6 +32,7 @@ from apps.core.models import (
 )
 from apps.core.modules import ALL_MODULE_CODES, SizeMode
 from apps.core.tenancy import tenant_scope, unscoped
+from apps.onboarding.provisioning import seed_roles
 from apps.platformadmin.models import Plan, Subscription
 
 FIRST_NAMES = [
@@ -277,17 +277,10 @@ def build_hospital(
             kind=Department.Kind.CLINIC,
         )
 
-        roles: dict[str, Role] = {}
-        for template in ROLE_TEMPLATES:
-            roles[template.slug] = Role.unscoped.create(
-                organisation=organisation,
-                name=template.name,
-                slug=template.slug,
-                description=template.description,
-                permissions=list(template.codes),
-                from_template=True,
-                is_protected=template.slug == "owner",
-            )
+    # The same function provisioning uses, deliberately. A test hospital whose
+    # roles were seeded differently from a real one would prove nothing about
+    # a real one.
+    roles = seed_roles(organisation)
 
     return Hospital(
         organisation=organisation,

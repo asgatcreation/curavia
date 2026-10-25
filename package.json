@@ -21,7 +21,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "types": "openapi-typescript http://localhost:8000/api/v1/schema/ -o frontend/shared/src/api/generated.ts"
+    "types": "openapi-typescript http://localhost:8010/api/v1/schema/ -o frontend/shared/src/api/generated.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -53,6 +53,12 @@ export interface Me {
   memberships: Membership[];
   permissions: string[];
   modules: string[];
+
+  /** The route this person should open on, decided by the server. */
+  landing: string;
+  /** Both drive routing on boot; see apps/core/setup_steps.py. */
+  email_verified: boolean;
+  setup_complete: boolean;
 }
 
 export interface ApiError {

@@ -8,6 +8,7 @@ Nothing secret belongs in this file; secrets come from the environment.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -68,6 +69,7 @@ INSTALLED_APPS = [
     # Curavia
     "apps.core",
     "apps.accounts",
+    "apps.onboarding",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -202,6 +204,30 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "apps.core.api.exceptions.curavia_exception_handler",
 }
 
+# --------------------------------------------------------------------------
+# JWT
+#
+# Set explicitly rather than left on simplejwt's defaults, because the
+# defaults are tuned for a consumer app and this is a clinical one.
+#
+# A twelve-hour refresh token is a shift. A nurse who signs in at the start of
+# a shift should not be asked again before the end of it, and should not still
+# be signed in the next morning on a machine in a corridor.
+#
+# Rotation with blacklisting means a refresh token is single-use: if one is
+# stolen and used, the real user's next refresh fails and they are signed out,
+# which is a detectable event rather than a silent parallel session.
+# --------------------------------------------------------------------------
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(hours=12),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "Curavia API",
     "DESCRIPTION": (
@@ -290,6 +316,10 @@ CURAVIA = {
     # Signed URL lifetime for medical files, in seconds.
     "SIGNED_URL_TTL": 300,
     "PERMISSIONS_MATRIX": REPO_ROOT / "docs" / "permissions-matrix.yml",
+    # Where the staff app is served. Used to build the links in emails, which
+    # are opened outside the request that sent them, so they cannot be
+    # relative and cannot be derived from a Host header a caller controls.
+    "APP_URL": env("CURAVIA_APP_URL", "http://localhost:5173"),
 }
 
 # --------------------------------------------------------------------------

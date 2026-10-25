@@ -26,9 +26,11 @@ from rest_framework.response import Response
 
 from apps.core import audit
 from apps.core.audit import AuditEvent, ChainVerificationError
+from apps.core.landing import landing_for
 from apps.core.models import Branch, Department
 from apps.core.permissions import HasPermission
 from apps.core.request_context import as_audit_kwargs
+from apps.core.setup_steps import setup_is_complete
 
 from .base import (
     CuraviaAPIView,
@@ -136,6 +138,7 @@ class MeView(CuraviaAPIView):
             if branch_id:
                 branch = Branch.objects.filter(pk=branch_id).first()
 
+        live = list(user.live_memberships())
         memberships = [
             {
                 "organisation_id": membership.organisation_id,
@@ -144,8 +147,15 @@ class MeView(CuraviaAPIView):
                 "roles": [role.name for role in membership.roles.all()],
                 "branches": list(membership.branches.all()),
             }
-            for membership in user.live_memberships()
+            for membership in live
         ]
+
+        # Role slugs of the membership being acted under, not of every
+        # membership this person holds: a doctor at one hospital who is the
+        # owner of another must land on the doctor's screen when they are
+        # signed in to the first.
+        active = request.membership
+        role_slugs = [role.slug for role in active.roles.all()] if active else []
 
         payload = {
             "id": user.pk,
@@ -161,6 +171,9 @@ class MeView(CuraviaAPIView):
             "memberships": memberships,
             "permissions": sorted(request.tenant_permissions),
             "modules": sorted(request.available_modules),
+            "landing": landing_for(role_slugs, request.tenant_permissions),
+            "email_verified": user.email_verified_at is not None,
+            "setup_complete": setup_is_complete(organisation),
         }
         return Response(MeSerializer(payload, context={"request": request}).data)
 

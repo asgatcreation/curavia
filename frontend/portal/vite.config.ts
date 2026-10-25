@@ -5,9 +5,13 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 
-// The SPA talks to Django on 8000 in development. Proxying rather than using
+// The SPA talks to Django on 8010 in development. Proxying rather than using
 // an absolute URL keeps cookies first-party, so session auth and CSRF behave
 // exactly as they will in production.
+//
+// 8010 rather than 8000 because this machine runs other projects' servers on
+// 8000 and 3000. Override it with VITE_API_TARGET when yours is elsewhere.
+const API_TARGET = process.env["VITE_API_TARGET"] ?? "http://localhost:8010";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -19,9 +23,9 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      "/api": { target: "http://localhost:8000", changeOrigin: true },
-      "/ws": { target: "ws://localhost:8000", ws: true },
-      "/static": { target: "http://localhost:8000", changeOrigin: true },
+      "/api": { target: API_TARGET, changeOrigin: true },
+      "/ws": { target: API_TARGET.replace(/^http/, "ws"), ws: true },
+      "/static": { target: API_TARGET, changeOrigin: true },
     },
   },
   build: { outDir: "dist", sourcemap: true, target: "es2023" },

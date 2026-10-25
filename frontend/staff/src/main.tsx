@@ -1,17 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ApiClient } from "@curavia/shared";
 
 import App from "./App";
 import "./index.css";
-
-export const api = new ApiClient({
-  onUnauthenticated: () => {
-    // One redirect, however many queries failed at once.
-    window.location.assign("/login");
-  },
-});
 
 const queryClient = new QueryClient({
   defaultOptions: {

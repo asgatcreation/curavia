@@ -40,3 +40,13 @@ backend/apps/core/management/commands/verify_audit_chain.py
 # cannot itself require a scope. Every read here is filtered explicitly to the
 # membership's own organisation.
 backend/apps/core/scope.py
+
+# Creates a hospital's first rows — branch, departments, roles and the owner's
+# membership — before that hospital exists to be scoped to. Every write is to
+# the organisation it has just created in the same transaction; it reads
+# nothing belonging to anybody else.
+backend/apps/onboarding/provisioning.py
+
+# Asserts across two freshly provisioned hospitals that neither can see the
+# other's roles or branches - which cannot be done from inside one scope.
+backend/tests/test_onboarding.py

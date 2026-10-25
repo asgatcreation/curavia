@@ -109,6 +109,14 @@ class MeSerializer(serializers.Serializer):
     permissions = serializers.ListField(child=serializers.CharField())
     modules = serializers.ListField(child=serializers.CharField())
 
+    #: The route this person should open on. See apps/core/landing.py.
+    landing = serializers.CharField()
+    #: Both drive routing on boot: an unverified owner is sent to the
+    #: "check your email" page, and a hospital that has not finished the
+    #: setup wizard is sent back into it rather than to an empty front desk.
+    email_verified = serializers.BooleanField()
+    setup_complete = serializers.BooleanField()
+
 
 class AuditEventSerializer(serializers.ModelSerializer):
     actor_name = serializers.SerializerMethodField()

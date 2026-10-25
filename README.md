@@ -236,7 +236,7 @@ pip install -r requirements-dev.txt
 python manage.py migrate
 python manage.py seed_platform
 python manage.py createsuperuser
-python manage.py runserver
+python manage.py runserver 8010
 ```
 
 Frontend:
@@ -251,9 +251,9 @@ npm run dev:portal     # http://localhost:5174
 |---|---|
 | Staff app | http://localhost:5173 |
 | Patient portal | http://localhost:5174 |
-| Marketing site | http://localhost:8000/ |
-| API docs | http://localhost:8000/api/docs/ |
-| Health check | http://localhost:8000/healthz |
+| Marketing site | http://localhost:8010/ |
+| API docs | http://localhost:8010/api/docs/ |
+| Health check | http://localhost:8010/healthz |
 
 ## Tests
 
