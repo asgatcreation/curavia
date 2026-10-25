@@ -50,11 +50,11 @@ Frontend types are **generated** from the backend's OpenAPI schema (`drf-spectac
 
 # Phase A — the core hospital (first live version)
 
-### Milestone 1 — Design and sign-off ← **you are here**
+### Milestone 1 — Design and sign-off ✓ done
 `00-decisions.md`, `01-data-model.md`, `02-tenancy-and-permissions.md`, this file.
 **Deliverable: your approval.** No code.
 
-### Milestone 2 — Foundations
+### Milestone 2 — Foundations ✓ done
 The skeleton, built to be safe from the first commit.
 
 - Monorepo scaffold, Docker + compose (Postgres + Redis locally), `.env.example`, Neon connection
@@ -70,17 +70,17 @@ The skeleton, built to be safe from the first commit.
 
 **Done when:** CI is green, the permissions matrix and isolation tests pass, and `docker compose up` gives a running app with a login screen.
 
-### Milestone 3 — Visual direction ← *your second sign-off point*
+### Milestone 3 — Visual direction ✓ done *(signed off)*
 Before I build 40 screens, I show you six, built as real working pages with real components:
 
 marketing home · front desk · doctor consultation · pharmacy queue · patient journey board · group dashboard
 
 Light and dark, at phone / tablet / desktop. The design language: calm premium clinical software — a patient banner always visible (name, age, sex, MRN, **allergies in red**, alerts), colour-blind-safe status colours, big touch targets for nurses on tablets, keyboard shortcuts for heavy users, WCAG AA. **I stop and wait for your reaction here.**
 
-### Milestone 4 — Onboarding and the hospital shell
+### Milestone 4 — Onboarding and the hospital shell ✓ done
 Owner sign-up → email verification → **setup wizard** ("4 of 7") creating organisation, branches, departments, clinics, wards/beds, service prices, HMO tariffs — from editable templates (common departments, lab catalogue, essential drugs list, price list). Hospital size modes and module switches. Staff invitations and acceptance. **Role-based landing** — every role lands on its own dashboard. Branch switcher. **Excel/CSV import** with column mapping, preview and an error report. Group dashboard with live branch cards and drill-down.
 
-### Milestone 5 — Patients, appointments and the live journey
+### Milestone 5 — Patients, appointments and the live journey ← **you are here**
 Registration (front desk and self-service) with **duplicate detection and merge**. MRN, patient card with QR, lifetime timeline. Emergency quick-registration. Trigram search. Booking (portal + front desk), doctor schedules and leave, walk-ins, token numbers, the **TV "now serving" screen**, SMS/email reminders, no-show tracking. The **live journey board over WebSockets** — this is the showpiece: every patient, every stage, every wait time, updating as it happens.
 
 ### Milestone 6 — Triage, consultation and orders
