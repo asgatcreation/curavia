@@ -38,6 +38,7 @@ import {
   IconSearch,
   IconStethoscope,
   IconSun,
+  IconUsers,
   IconWarning,
 } from "./icons";
 
@@ -46,22 +47,62 @@ interface NavItem {
   label: string;
   short: string;
   icon: (props: { className?: string }) => ReactNode;
+  /**
+   * The permission that makes this screen worth showing.
+   *
+   * Hiding a menu item is a convenience, never a control — every endpoint
+   * checks again, and a hidden item whose endpoint stayed open would be the
+   * actual bug. What this prevents is a nurse spending her shift looking at
+   * five tabs, four of which answer 403.
+   */
+  needs?: string;
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Front desk", short: "Desk", icon: IconDesk },
-  { to: "/consultation", label: "Consultation", short: "Consult", icon: IconStethoscope },
-  { to: "/pharmacy", label: "Pharmacy", short: "Pharmacy", icon: IconPill },
+  { to: "/", label: "Front desk", short: "Desk", icon: IconDesk, needs: "patients.view" },
+  {
+    to: "/triage",
+    label: "Triage",
+    short: "Triage",
+    icon: IconStethoscope,
+    needs: "triage.vitals.record",
+  },
+  {
+    to: "/consultation",
+    label: "Consultation",
+    short: "Consult",
+    icon: IconStethoscope,
+    needs: "clinical.note.write",
+  },
+  {
+    to: "/pharmacy",
+    label: "Pharmacy",
+    short: "Pharmacy",
+    icon: IconPill,
+    needs: "pharmacy.queue.view",
+  },
   { to: "/journey", label: "Journey board", short: "Journey", icon: IconBoard },
-  { to: "/group", label: "Group", short: "Group", icon: IconChart },
+  { to: "/group", label: "Group", short: "Group", icon: IconChart, needs: "reporting.view" },
+  { to: "/staff", label: "Staff", short: "Staff", icon: IconUsers, needs: "staff.view" },
 ];
+
+/** The items this person can actually use. */
+function navFor(permissions: readonly string[] | undefined): NavItem[] {
+  const held = new Set(permissions ?? []);
+  const allowed = NAV.filter((item) => !item.needs || held.has(item.needs));
+  // Never an empty navigation bar: somebody whose role grants nothing still
+  // needs a way back to the page that explains why.
+  return allowed.length > 0 ? allowed : [NAV[0] as NavItem];
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (state) => state.location.pathname });
+  const { me } = useAuth();
+  const items = navFor(me?.permissions);
 
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
-      <DesktopSidebar path={path} />
+      <DesktopSidebar path={path} items={items} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
@@ -70,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="flex-1 pb-20 lg:pb-0">{children}</main>
       </div>
 
-      <BottomBar path={path} />
+      <BottomBar path={path} items={items} />
     </div>
   );
 }
@@ -136,7 +177,7 @@ function isActive(path: string, to: string): boolean {
   return to === "/" ? path === "/" : path.startsWith(to);
 }
 
-function DesktopSidebar({ path }: { path: string }) {
+function DesktopSidebar({ path, items }: { path: string; items: NavItem[] }) {
   return (
     <nav
       aria-label="Departments"
@@ -146,7 +187,7 @@ function DesktopSidebar({ path }: { path: string }) {
         <Wordmark />
       </div>
 
-      {NAV.map((item) => {
+      {items.map((item) => {
         const active = isActive(path, item.to);
         return (
           <Link
@@ -173,13 +214,16 @@ function DesktopSidebar({ path }: { path: string }) {
   );
 }
 
-function BottomBar({ path }: { path: string }) {
+function BottomBar({ path, items }: { path: string; items: NavItem[] }) {
   return (
     <nav
       aria-label="Departments"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95"
+      // The column count follows the item count: a nurse sees three tabs,
+      // an owner seven, and neither should get four empty columns.
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      className="fixed inset-x-0 bottom-0 z-30 grid overflow-x-auto border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95"
     >
-      {NAV.map((item) => {
+      {items.map((item) => {
         const active = isActive(path, item.to);
         return (
           <Link

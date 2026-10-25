@@ -10,7 +10,7 @@ from __future__ import annotations
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from . import views
+from . import staff_views, views
 
 urlpatterns = [
     path("login/", views.LoginView.as_view(), name="login"),
@@ -19,4 +19,16 @@ urlpatterns = [
     path("refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("sessions/", views.SessionListView.as_view(), name="sessions"),
     path("sessions/revoke-all/", views.RevokeAllSessionsView.as_view(), name="sessions-revoke"),
+    # Accepting an invitation happens before anybody has an account, so these
+    # two sit beside login rather than under the signed-in staff routes.
+    path(
+        "invitation/",
+        staff_views.InvitationPreviewView.as_view(),
+        name="invitation-preview",
+    ),
+    path(
+        "invitation/accept/",
+        staff_views.AcceptInvitationView.as_view(),
+        name="invitation-accept",
+    ),
 ]

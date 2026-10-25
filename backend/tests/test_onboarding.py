@@ -498,3 +498,40 @@ def test_an_unknown_step_is_rejected(hospital) -> None:
 def test_somebody_with_no_hospital_is_never_sent_into_a_setup_wizard() -> None:
     assert setup_is_complete(None) is True
     assert next_step(None) == SETUP_STEP_KEYS[0]
+
+
+def test_every_landing_path_has_a_screen_in_the_staff_app() -> None:
+    """
+    The server decides where each role lands, and the client has to have
+    something there.
+
+    This failed in the browser: a nurse signed in, the server sent her to
+    /triage, and the router answered Not Found — because triage arrives at
+    milestone 6 and nothing had said so. The fix was a "not built yet" screen
+    that names what is coming; this is the test that keeps the two lists
+    together.
+
+    A text scan across the language boundary rather than a shared manifest.
+    Crude, but the alternative is a generated file nobody reads, and the
+    failure message below is clear enough to act on.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+
+    from apps.core.landing import FALLBACK, PERMISSION_LANDING, ROLE_LANDING
+
+    staff_src = Path(settings.REPO_ROOT) / "frontend" / "staff" / "src"
+    sources = (staff_src / "App.tsx").read_text(encoding="utf-8") + (
+        staff_src / "screens" / "planned.ts"
+    ).read_text(encoding="utf-8")
+
+    wanted = {*ROLE_LANDING.values(), *(path for _code, path in PERMISSION_LANDING), FALLBACK}
+    missing = sorted(path for path in wanted if f'"{path}"' not in sources)
+
+    assert not missing, (
+        "apps/core/landing.py sends people to paths the staff app has no screen "
+        f"for: {missing}. Either build the screen, or add it to "
+        "frontend/staff/src/screens/planned.ts so the person is told when it "
+        "is coming instead of seeing Not Found."
+    )

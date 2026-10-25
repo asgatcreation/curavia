@@ -50,3 +50,15 @@ backend/apps/onboarding/provisioning.py
 # Asserts across two freshly provisioned hospitals that neither can see the
 # other's roles or branches - which cannot be done from inside one scope.
 backend/tests/test_onboarding.py
+
+# Looks an invitation up by the hash of its token. The person accepting is not
+# signed in and has no hospital yet, so the token is the only thing that says
+# which hospital they are joining. The lookup is by an unguessable hash and
+# returns at most one row; everything written afterwards is inside that
+# hospital's own scope.
+backend/apps/accounts/invitations.py
+
+# Counts one person's memberships across two hospitals, to prove a locum has
+# one login rather than two, and asserts that an invitation issued by one
+# hospital left nothing visible in the other.
+backend/tests/test_invitations.py

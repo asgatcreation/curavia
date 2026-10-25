@@ -29,14 +29,31 @@ import { FrontDesk } from "./screens/FrontDesk";
 import { GroupDashboard } from "./screens/GroupDashboard";
 import { JourneyBoard } from "./screens/JourneyBoard";
 import { NoAccess } from "./screens/NoAccess";
+import { NotBuiltYet } from "./screens/NotBuiltYet";
+import { PLANNED } from "./screens/planned";
 import { Pharmacy } from "./screens/Pharmacy";
+import { StaffAndRoles } from "./screens/StaffAndRoles";
+import { AcceptInvitation } from "./screens/auth/AcceptInvitation";
 import { SetupWizard } from "./screens/setup/SetupWizard";
 import { SignIn } from "./screens/auth/SignIn";
 import { SignUp } from "./screens/auth/SignUp";
 import { VerifyEmail } from "./screens/auth/VerifyEmail";
 
-/** Routes anybody may open, signed in or not. */
-const PUBLIC_PATHS = new Set(["/sign-in", "/sign-up", "/verify-email"]);
+/**
+ * Signed-out routes, split by what should happen when somebody IS signed in.
+ *
+ * `GUEST_ONLY` are the two that mean "I have no account": a signed-in person
+ * who opens them wants the app, not a second login form.
+ *
+ * `TOKEN_DRIVEN` are opened from a link in an email, and the link decides who
+ * they are for — which may not be the person already signed in on this
+ * machine. A nurse clicking her invitation on the ward's shared computer,
+ * where the matron is still signed in, must see her invitation. Sending her
+ * to the matron's dashboard instead is how two people end up sharing one
+ * login.
+ */
+const GUEST_ONLY = new Set(["/sign-in", "/sign-up"]);
+const TOKEN_DRIVEN = new Set(["/verify-email", "/accept-invitation"]);
 
 const rootRoute = createRootRoute({ component: Root });
 
@@ -58,12 +75,16 @@ function Root() {
 function Gate() {
   const { status } = useAuth();
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const isPublic = PUBLIC_PATHS.has(path);
+
+  // Rendered the same way whether or not anybody is signed in, and before
+  // the boot sequence finishes: the token in the URL is the identity that
+  // matters on these pages.
+  if (TOKEN_DRIVEN.has(path)) return <Outlet />;
 
   if (status === "booting") return <Splash />;
 
   if (status === "signed-out") {
-    if (isPublic) return <Outlet />;
+    if (GUEST_ONLY.has(path)) return <Outlet />;
     // No redirect, no history entry: the sign-in screen replaces whatever
     // was asked for, and signing in lands on it.
     return <SignIn />;
@@ -71,7 +92,7 @@ function Gate() {
 
   // Signed in. A signed-in person who opens /sign-in gets the app, not a
   // second login form.
-  if (isPublic) return <ShellWithLanding />;
+  if (GUEST_ONLY.has(path)) return <ShellWithLanding />;
 
   return (
     <AppShell>
@@ -144,6 +165,7 @@ const SCREENS: Record<string, () => React.JSX.Element> = {
   "/group": GroupDashboard,
   "/no-access": NoAccess,
   "/setup": SetupWizard,
+  "/staff": StaffAndRoles,
 };
 
 function Splash() {
@@ -167,9 +189,25 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/group", component: GroupDashboard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/no-access", component: NoAccess }),
   createRoute({ getParentRoute: () => rootRoute, path: "/setup", component: SetupWizard }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/staff", component: StaffAndRoles }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/accept-invitation",
+    component: AcceptInvitation,
+  }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-in", component: SignIn }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-up", component: SignUp }),
   createRoute({ getParentRoute: () => rootRoute, path: "/verify-email", component: VerifyEmail }),
+  // Real routes for the screens that are on the plan but not built, so a
+  // direct link works and the person is told what it will be rather than
+  // seeing Not Found.
+  ...Object.keys(PLANNED).map((path) =>
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path,
+      component: () => <NotBuiltYet path={path} />,
+    }),
+  ),
 ];
 
 const router = createRouter({ routeTree: rootRoute.addChildren(routes) });

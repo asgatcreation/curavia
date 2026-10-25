@@ -124,3 +124,13 @@ export function IconWarning(props: IconProps) {
     </Icon>
   );
 }
+
+export function IconUsers(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="3.5" />
+      <path d="M22 20v-2a4 4 0 0 0-3-3.87M16.5 3.6a4 4 0 0 1 0 6.8" />
+    </Icon>
+  );
+}
