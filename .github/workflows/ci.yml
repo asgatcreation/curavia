@@ -242,12 +242,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
 
-      # `npm install`, not `npm ci`: package-lock.json lands with the first
-      # real dependency install at milestone 3, when the design system goes in.
-      # Switch this to `npm ci` then, and re-enable the npm cache above.
+      # `npm ci`, not `npm install`: the lock file landed at milestone 3, and
+      # CI must install exactly what is locked rather than resolving afresh.
       - name: Install dependencies
-        run: npm install --no-audit --fund=false
+        run: npm ci --no-audit --fund=false
 
       - name: ESLint
         run: npm run lint --workspaces --if-present
