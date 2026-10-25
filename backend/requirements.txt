@@ -36,6 +36,12 @@ whitenoise==6.12.0
 sentry-sdk==2.72.0
 structlog==26.1.0
 
+# Spreadsheet import (milestone 4). openpyxl reads XLSX; defusedxml is picked
+# up by it automatically and hardens the XML parsing, which matters because
+# every file here was uploaded by somebody.
+openpyxl==3.1.5
+defusedxml==0.7.1
+
 # Utilities
 python-dotenv==1.2.4
 PyYAML==6.0.3

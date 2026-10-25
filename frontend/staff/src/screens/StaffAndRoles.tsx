@@ -96,9 +96,14 @@ export function StaffAndRoles() {
           </p>
         </div>
         {canInvite && (
-          <Button variant="primary" onClick={() => setInviting((current) => !current)}>
-            {inviting ? "Cancel" : "Invite somebody"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => window.location.assign("/import")}>
+              Import a list
+            </Button>
+            <Button variant="primary" onClick={() => setInviting((current) => !current)}>
+              {inviting ? "Cancel" : "Invite somebody"}
+            </Button>
+          </div>
         )}
       </div>
 

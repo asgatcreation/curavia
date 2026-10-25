@@ -27,6 +27,7 @@ import { api } from "./api";
 import { Consultation } from "./screens/Consultation";
 import { FrontDesk } from "./screens/FrontDesk";
 import { GroupDashboard } from "./screens/GroupDashboard";
+import { ImportData } from "./screens/ImportData";
 import { JourneyBoard } from "./screens/JourneyBoard";
 import { NoAccess } from "./screens/NoAccess";
 import { NotBuiltYet } from "./screens/NotBuiltYet";
@@ -166,6 +167,7 @@ const SCREENS: Record<string, () => React.JSX.Element> = {
   "/no-access": NoAccess,
   "/setup": SetupWizard,
   "/staff": StaffAndRoles,
+  "/import": ImportData,
 };
 
 function Splash() {
@@ -190,6 +192,7 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/no-access", component: NoAccess }),
   createRoute({ getParentRoute: () => rootRoute, path: "/setup", component: SetupWizard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/staff", component: StaffAndRoles }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/import", component: ImportData }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/accept-invitation",

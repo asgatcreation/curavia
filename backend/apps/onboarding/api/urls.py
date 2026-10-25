@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import setup_views, views
+from . import import_views, setup_views, views
 
 urlpatterns = [
     path("sign-up/", views.SignUpView.as_view(), name="sign-up"),
@@ -27,5 +27,23 @@ urlpatterns = [
         "setup/<slug:step>/skip/",
         setup_views.SkipStepView.as_view(),
         name="setup-step-skip",
+    ),
+    # Spreadsheet import. The file is uploaded with each step; see
+    # import_views for why.
+    path("import/", import_views.ImportCatalogueView.as_view(), name="import-catalogue"),
+    path(
+        "import/<slug:kind>/analyse/",
+        import_views.AnalyseImportView.as_view(),
+        name="import-analyse",
+    ),
+    path(
+        "import/<slug:kind>/preview/",
+        import_views.PreviewImportView.as_view(),
+        name="import-preview",
+    ),
+    path(
+        "import/<slug:kind>/commit/",
+        import_views.CommitImportView.as_view(),
+        name="import-commit",
     ),
 ]

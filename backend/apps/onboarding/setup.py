@@ -275,7 +275,7 @@ def apply_services(organisation: Organisation, rows: list[dict[str, Any]]) -> St
     question to ask during setup.
     """
     by_code = {t.code: t for t in templates.SERVICE_TEMPLATES}
-    self_pay = _ensure_self_pay_payer(organisation)
+    self_pay = ensure_self_pay_payer(organisation)
 
     created = updated = priced = 0
     for row in rows:
@@ -336,7 +336,7 @@ def apply_services(organisation: Organisation, rows: list[dict[str, Any]]) -> St
     )
 
 
-def _ensure_self_pay_payer(organisation: Organisation) -> Payer:
+def ensure_self_pay_payer(organisation: Organisation) -> Payer:
     """
     Every hospital has exactly one self-pay payer, created on demand.
 
@@ -374,7 +374,7 @@ def apply_payers(organisation: Organisation, rows: list[dict[str, Any]]) -> Step
     the names; the rates are entered against the price list afterwards, where
     the hospital can see its own self-pay price beside them.
     """
-    _ensure_self_pay_payer(organisation)
+    ensure_self_pay_payer(organisation)
     by_code = {t.code: t for t in templates.PAYER_TEMPLATES}
 
     created = updated = 0

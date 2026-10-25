@@ -106,7 +106,12 @@ export class ApiClient {
   async request<T>(path: string, init: RequestInit = {}, allowRetry = true): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
-    if (init.body && !headers.has("Content-Type")) {
+    // FormData must set its OWN Content-Type, because the header has to carry
+    // the multipart boundary the browser generated. Setting application/json
+    // over it produces a body the server cannot parse, and the error says
+    // nothing useful about why.
+    const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+    if (init.body && !isFormData && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
     if (this.accessToken) headers.set("Authorization", `Bearer ${this.accessToken}`);

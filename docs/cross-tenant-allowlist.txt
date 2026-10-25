@@ -62,3 +62,7 @@ backend/apps/accounts/invitations.py
 # one login rather than two, and asserts that an invitation issued by one
 # hospital left nothing visible in the other.
 backend/tests/test_invitations.py
+
+# Asserts that an import run inside one hospital wrote nothing into another,
+# which has to be checked from outside both scopes.
+backend/tests/test_import.py
