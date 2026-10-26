@@ -27,6 +27,15 @@ export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: string;
   readonly fields: Record<string, string[]>;
+  /**
+   * The whole response body.
+   *
+   * Some errors carry more than a message: a duplicate-patient refusal
+   * comes back with the records it matched, and the screen has to show
+   * them. Keeping the body means an endpoint can say something useful
+   * without this class growing a field per endpoint.
+   */
+  readonly body: Record<string, unknown>;
 
   constructor(status: number, body: Partial<ApiError>) {
     super(body.detail ?? "Something went wrong. Please try again.");
@@ -34,6 +43,7 @@ export class ApiRequestError extends Error {
     this.status = status;
     this.code = body.code ?? "error";
     this.fields = body.fields ?? {};
+    this.body = (body ?? {}) as Record<string, unknown>;
   }
 
   /** True when the server rejected the input rather than the caller. */

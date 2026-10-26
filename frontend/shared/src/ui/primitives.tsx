@@ -201,7 +201,17 @@ export function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-export function EmptyState({ title, hint }: { title: string; hint?: string }) {
+export function EmptyState({
+  title,
+  hint,
+}: {
+  title: string;
+  // `| undefined` as well as `?`: exactOptionalPropertyTypes is on, so a
+  // caller passing a computed value that may be undefined is rejected
+  // without it, and every such caller would have to build its props object
+  // conditionally.
+  hint?: string | undefined;
+}) {
   return (
     <div className="px-4 py-10 text-center">
       <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{title}</p>

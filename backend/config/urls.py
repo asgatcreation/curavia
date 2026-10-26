@@ -30,6 +30,7 @@ api_v1 = [
     path("auth/", include("apps.accounts.api.urls")),
     path("onboarding/", include("apps.onboarding.api.urls")),
     path("", include("apps.accounts.api.staff_urls")),
+    path("", include("apps.patients.api.urls")),
     path("", include("apps.core.api.urls")),
 ]
 

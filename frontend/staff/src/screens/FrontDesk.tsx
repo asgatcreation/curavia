@@ -15,7 +15,8 @@
  *    the cashier at the end is how hospitals lose the money.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Badge,
   Button,
@@ -35,10 +36,13 @@ import {
   useNow,
   waitTone,
 } from "@curavia/shared";
-import type { WaitingPatient } from "@curavia/shared";
-import { DEMO_WAITING } from "@curavia/shared";
+import type { PatientSummary, WaitingPatient } from "@curavia/shared";
+import { DEMO_WAITING, PatientsApi } from "@curavia/shared";
 
+import { api } from "../api";
 import { IconWarning } from "../icons";
+
+const patients = new PatientsApi(api);
 
 const STAGES = ["All", "Waiting for triage", "Waiting for doctor", "Waiting for bill"] as const;
 type StageFilter = (typeof STAGES)[number];
@@ -48,6 +52,41 @@ export function FrontDesk() {
   const [query, setQuery] = useState("");
   // One clock for the whole screen, so every row on it agrees about the time.
   const now = useNow();
+  const navigate = useNavigate();
+
+  // Searching the hospital's register is a different question from filtering
+  // today's queue, and a clerk types the same box for both. So both happen:
+  // the queue filters as they type, and anybody in the register who is not in
+  // today's queue appears underneath.
+  const [found, setFound] = useState<PatientSummary[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const text = query.trim();
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (text.length < 2) {
+      // Clearing a list when the query gets too short is the effect
+      // synchronising React with what the box now says, which is what an
+      // effect is for — the rule cannot tell the two cases apart.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFound([]);
+      return;
+    }
+    // Debounced: a clerk types a surname in under a second and every
+    // keystroke would otherwise be a query against a trigram index.
+    searchTimer.current = setTimeout(() => {
+      setSearching(true);
+      void patients
+        .search(text, 8)
+        .then(setFound)
+        .catch(() => setFound([]))
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [query]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -78,7 +117,9 @@ export function FrontDesk() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary">Check in a booking</Button>
-          <Button variant="primary">Register a new patient</Button>
+          <Button variant="primary" onClick={() => void navigate({ to: "/register-patient" })}>
+            Register a new patient
+          </Button>
         </div>
       </div>
 
@@ -141,8 +182,12 @@ export function FrontDesk() {
 
         {rows.length === 0 ? (
           <EmptyState
-            title="Nobody matches that."
-            hint="Clear the filter, or register the patient if this is their first visit."
+            title="Nobody in today's queue matches that."
+            hint={
+              query.trim().length >= 2
+                ? "Look below — they may be registered but not here today."
+                : "Clear the filter, or register the patient if this is their first visit."
+            }
           />
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -152,6 +197,51 @@ export function FrontDesk() {
           </ul>
         )}
       </Card>
+
+      {query.trim().length >= 2 && (
+        <Card className="overflow-hidden">
+          <CardHeader
+            title="In the hospital's register"
+            count={found.length}
+            actions={
+              searching ? (
+                <span className="text-xs text-slate-500 dark:text-slate-400">Searching…</span>
+              ) : undefined
+            }
+          />
+          {found.length === 0 ? (
+            <EmptyState
+              title={searching ? "Searching…" : "No patient of that name is registered here."}
+              hint={
+                searching
+                  ? undefined
+                  : "Check the spelling — the search allows for misspellings — or register them."
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+              {found.map((patient) => (
+                <li key={patient.id} className="flex flex-wrap items-center gap-3 p-4">
+                  <span className="min-w-0 flex-1 basis-48">
+                    <span className="block font-semibold text-slate-900 dark:text-white">
+                      {patient.full_name}
+                    </span>
+                    <span className="numeric block text-xs text-slate-500 dark:text-slate-400">
+                      {patient.mrn}
+                      {patient.age ? ` · ${patient.age}` : ""}
+                      {patient.phone ? ` · ${patient.phone}` : ""}
+                    </span>
+                  </span>
+                  {patient.is_provisional && <Badge tone="warning">Not yet identified</Badge>}
+                  <Button size="sm" variant="secondary" className="ml-auto">
+                    Check in
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

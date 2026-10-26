@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.catalogue",
     "apps.onboarding",
+    "apps.patients",
     "apps.platformadmin",
     "apps.marketing",
 ]

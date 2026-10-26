@@ -33,6 +33,7 @@ import { NoAccess } from "./screens/NoAccess";
 import { NotBuiltYet } from "./screens/NotBuiltYet";
 import { PLANNED } from "./screens/planned";
 import { Pharmacy } from "./screens/Pharmacy";
+import { RegisterPatient } from "./screens/RegisterPatient";
 import { StaffAndRoles } from "./screens/StaffAndRoles";
 import { AcceptInvitation } from "./screens/auth/AcceptInvitation";
 import { SetupWizard } from "./screens/setup/SetupWizard";
@@ -168,6 +169,7 @@ const SCREENS: Record<string, () => React.JSX.Element> = {
   "/setup": SetupWizard,
   "/staff": StaffAndRoles,
   "/import": ImportData,
+  "/register-patient": RegisterPatient,
 };
 
 function Splash() {
@@ -193,6 +195,11 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/setup", component: SetupWizard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/staff", component: StaffAndRoles }),
   createRoute({ getParentRoute: () => rootRoute, path: "/import", component: ImportData }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/register-patient",
+    component: RegisterPatient,
+  }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/accept-invitation",

@@ -1,6 +1,7 @@
 export * from "./api/auth";
 export * from "./api/client";
 export * from "./api/importing";
+export * from "./api/patients";
 export * from "./api/reporting";
 export * from "./api/setup";
 export * from "./api/staff";
