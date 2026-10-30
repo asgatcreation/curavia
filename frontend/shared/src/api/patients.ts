@@ -97,6 +97,62 @@ export interface RegisterPatientInput {
   confirmed_not_duplicate?: boolean;
 }
 
+export interface TimelineEntry {
+  at: string;
+  /** Stable key the screen switches an icon on. */
+  kind: string;
+  title: string;
+  detail: string;
+  actor: string;
+  tone: "neutral" | "info" | "stable" | "warning" | "urgent" | "critical";
+  is_pinned: boolean;
+}
+
+export interface Timeline {
+  entries: TimelineEntry[];
+  /** What this timeline will carry later, and from which milestone. */
+  pending: { key: string; label: string; milestone: string }[];
+}
+
+export interface PatientCard {
+  patient: PatientSummary;
+  /** Surname first, in capitals — how a clerk reads a card at a counter. */
+  printed_name: string;
+  hospital_name: string;
+  branch_name: string;
+  /** `CURAVIA:<hospital>:<MRN>`. Deliberately not a URL, and never a name. */
+  payload: string;
+  /** An inline SVG fragment, sized in millimetres for printing. */
+  qr_svg: string;
+  support_phone: string;
+}
+
+export interface MergePlan {
+  winner: PatientSummary;
+  loser: PatientSummary;
+  fills: { field: string; label: string; value: string }[];
+  moves: { identifiers: number; next_of_kin: number; allergies: number };
+  severity_changes: { substance: string; was: string; becomes: string }[];
+  allergies_already_present: string[];
+  warnings: string[];
+  is_safe: boolean;
+  suggested_winner_id: string;
+}
+
+export interface MergeRecord {
+  id: string;
+  at: string;
+  by: string;
+  reason: string;
+  winner: { id: string; mrn: string };
+  loser: { id: string; mrn: string };
+  is_reversed: boolean;
+  reversed_at: string | null;
+  reversed_by: string;
+  reversal_reason: string;
+  can_reverse: boolean;
+}
+
 export class PatientsApi {
   constructor(private readonly client: ApiClient) {}
 
@@ -134,5 +190,42 @@ export class PatientsApi {
     note?: string;
   }): Promise<PatientDetail> {
     return this.client.post<PatientDetail>("/patients/register/quick/", input);
+  }
+
+  timeline(id: string): Promise<Timeline> {
+    return this.client.get<Timeline>(`/patients/${id}/timeline/`);
+  }
+
+  card(id: string): Promise<PatientCard> {
+    return this.client.get<PatientCard>(`/patients/${id}/card/`);
+  }
+
+  merges(id: string): Promise<MergeRecord[]> {
+    return this.client.get<MergeRecord[]>(`/patients/${id}/merges/`);
+  }
+
+  /** What a merge would do. The screen calls this before offering the button. */
+  previewMerge(winnerId: string, loserId: string): Promise<MergePlan> {
+    return this.client.post<MergePlan>("/patients/merge/preview/", {
+      winner_id: winnerId,
+      loser_id: loserId,
+    });
+  }
+
+  merge(winnerId: string, loserId: string, reason: string): Promise<{ id: string }> {
+    return this.client.post<{ id: string }>("/patients/merge/", {
+      winner_id: winnerId,
+      loser_id: loserId,
+      reason,
+    });
+  }
+
+  reverseMerge(mergeId: string, reason: string): Promise<{ id: string }> {
+    return this.client.post<{ id: string }>(`/patients/merge/${mergeId}/reverse/`, { reason });
+  }
+
+  /** Whatever the scanner read, or an MRN typed by hand. */
+  scan(code: string): Promise<PatientSummary & { resolved_from_merge: boolean }> {
+    return this.client.post("/patients/scan/", { code });
   }
 }

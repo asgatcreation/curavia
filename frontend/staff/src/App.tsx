@@ -17,6 +17,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  useParams,
   useRouterState,
 } from "@tanstack/react-router";
 
@@ -31,6 +32,7 @@ import { ImportData } from "./screens/ImportData";
 import { JourneyBoard } from "./screens/JourneyBoard";
 import { NoAccess } from "./screens/NoAccess";
 import { NotBuiltYet } from "./screens/NotBuiltYet";
+import { PatientRecord } from "./screens/PatientRecord";
 import { PLANNED } from "./screens/planned";
 import { Pharmacy } from "./screens/Pharmacy";
 import { RegisterPatient } from "./screens/RegisterPatient";
@@ -185,6 +187,14 @@ function Splash() {
   );
 }
 
+function PatientRecordRoute() {
+  // `strict: false` rather than a typed route object: the route tree is
+  // built as an array below, so there is no named route to hang
+  // `useParams` off without splitting the array apart.
+  const { patientId } = useParams({ strict: false });
+  return <PatientRecord patientId={patientId ?? ""} />;
+}
+
 const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: FrontDesk }),
   createRoute({ getParentRoute: () => rootRoute, path: "/consultation", component: Consultation }),
@@ -195,6 +205,15 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/setup", component: SetupWizard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/staff", component: StaffAndRoles }),
   createRoute({ getParentRoute: () => rootRoute, path: "/import", component: ImportData }),
+  // The only route with a parameter so far. The id is in the path rather
+  // than a query string because this URL gets pasted into a message between
+  // two members of staff, and a path reads as a record while `?id=` reads as
+  // a search somebody might edit.
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/patients/$patientId",
+    component: PatientRecordRoute,
+  }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/register-patient",

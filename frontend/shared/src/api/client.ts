@@ -43,7 +43,7 @@ export class ApiRequestError extends Error {
     this.status = status;
     this.code = body.code ?? "error";
     this.fields = body.fields ?? {};
-    this.body = (body ?? {}) as Record<string, unknown>;
+    this.body = body ?? {};
   }
 
   /** True when the server rejected the input rather than the caller. */

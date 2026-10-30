@@ -11,3 +11,50 @@
  * workspace is outside this app's folder, so its components have to be
  * declared as a source or every class in the design system is dropped. */
 @source "../../shared/src";
+
+/*
+ * Printing a patient card.
+ *
+ * A hospital prints these on a cheap inkjet or a card printer, so the page
+ * has to be the card and nothing else — no navigation, no queue behind it,
+ * and no dark mode, because a dark card is a card printed in solid ink.
+ *
+ * `visibility` rather than `display: none` on the body: hiding the ancestors
+ * outright would hide the card with them, and the card is a descendant of
+ * the whole app shell.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .curavia-card,
+  .curavia-card * {
+    visibility: visible;
+  }
+
+  .curavia-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* ID-1, the size of a bank card, so it fits the wallet it will live in. */
+    width: 85.6mm;
+    height: 54mm;
+    background: #fff;
+    color: #000;
+    /* A printer cannot render a ring, and a border is what a guillotine
+       needs to cut against. */
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+
+  .curavia-qr {
+    /* Black on white whatever the screen theme was. A QR printed in the
+       brand colour at this size does not scan. */
+    fill: #000;
+  }
+
+  @page {
+    margin: 8mm;
+  }
+}

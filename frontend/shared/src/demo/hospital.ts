@@ -206,14 +206,16 @@ export const DEMO_VITALS: Vital[] = [
 
 export const DEMO_NEWS2 = 3;
 
-export interface TimelineEntry {
+/** Demo encounter events for the Consultation screen. The real patient
+ * timeline is `TimelineEntry` in api/patients.ts. */
+export interface DemoTimelineEntry {
   at: string;
   who: string;
   what: string;
   detail?: string;
 }
 
-export const DEMO_TIMELINE: TimelineEntry[] = [
+export const DEMO_TIMELINE: DemoTimelineEntry[] = [
   { at: minutesAgo(72), who: "Front desk · Ngozi Bello", what: "Registered and checked in" },
   {
     at: minutesAgo(64),

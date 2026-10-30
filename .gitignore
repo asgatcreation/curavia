@@ -85,3 +85,6 @@ desktop.ini
 /tmp/
 *.bak
 *.orig
+
+# TypeScript incremental build state (tsc -b). Machine-local.
+*.tsbuildinfo

@@ -232,7 +232,9 @@ export function Stat({
 }: {
   label: string;
   value: string;
-  sub?: string;
+  // `| undefined` as well as `?`, for the same reason as EmptyState's hint:
+  // exactOptionalPropertyTypes rejects a caller passing a computed value.
+  sub?: string | undefined;
   tone?: StatusTone;
 }) {
   return (

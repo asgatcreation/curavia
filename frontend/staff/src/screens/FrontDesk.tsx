@@ -233,8 +233,18 @@ export function FrontDesk() {
                     </span>
                   </span>
                   {patient.is_provisional && <Badge tone="warning">Not yet identified</Badge>}
-                  <Button size="sm" variant="secondary" className="ml-auto">
-                    Check in
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="ml-auto"
+                    onClick={() =>
+                      void navigate({
+                        to: "/patients/$patientId",
+                        params: { patientId: patient.id },
+                      })
+                    }
+                  >
+                    Open record
                   </Button>
                 </li>
               ))}

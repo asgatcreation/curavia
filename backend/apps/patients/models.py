@@ -426,3 +426,71 @@ class Allergy(TenantScoped):
     @property
     def is_critical(self) -> bool:
         return self.severity in {self.Severity.SEVERE, self.Severity.ANAPHYLAXIS}
+
+
+class PatientMerge(TenantScoped):
+    """
+    One merge, and everything needed to undo it.
+
+    The manifest is the whole point of this table. Without it, reversal
+    would have to guess which of two identical allergy rows came from where,
+    and which blank fields on the surviving record were blank before.
+
+    Not ``on_delete=CASCADE`` on either side: deleting a patient who has been
+    merged would destroy the evidence of the merge. ``PROTECT`` means the
+    database refuses, which is the correct answer.
+    """
+
+    winner = models.ForeignKey(
+        Patient, on_delete=models.PROTECT, related_name="merges_won", verbose_name=_("kept record")
+    )
+    loser = models.ForeignKey(
+        Patient,
+        on_delete=models.PROTECT,
+        related_name="merges_lost",
+        verbose_name=_("merged record"),
+    )
+
+    at = models.DateTimeField(default=timezone.now, db_index=True)
+    by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    reason = models.TextField(
+        blank=True, help_text=_("Why these are the same person. Shown on the timeline.")
+    )
+
+    #: What moved and what was filled, with previous values. See the module
+    #: docstring; the shape is documented on ``MergePlan``.
+    manifest = models.JSONField(default=dict, blank=True, editable=False)
+
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    reversal_reason = models.TextField(blank=True)
+
+    class Meta(TenantScoped.Meta):
+        verbose_name = _("patient merge")
+        ordering = ("-at",)
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(winner=models.F("loser")),
+                name="merge_is_between_two_records",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organisation", "winner"]),
+            models.Index(fields=["organisation", "loser"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.loser_id} → {self.winner_id}"
+
+    @property
+    def is_reversed(self) -> bool:
+        return self.reversed_at is not None
+
+    def clean(self) -> None:
+        super().clean()
+        if self.winner_id and self.winner_id == self.loser_id:
+            raise ValidationError({"loser": _("A record cannot be merged into itself.")})
