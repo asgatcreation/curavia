@@ -172,6 +172,51 @@ permissions:
       the auditor; everybody else reaches a patient through a relationship or
       through break-the-glass.
 
+  # ---------------------------------------------------- appointments, queues
+  appointment.view:
+    allow:
+      - owner
+      - facility_admin
+      - doctor
+      - consultant
+      - nurse
+      - nurse_in_charge
+      - front_desk
+      - auditor
+    note: >
+      The diary says who is coming, when, and what for — a list of people's
+      health appointments, so it stops at the people running the clinic. The
+      cashier bills what actually happened, not what was booked.
+
+  appointment.book:
+    allow: [owner, facility_admin, front_desk, doctor, consultant]
+    note: >
+      The front desk books, and a clinician books the follow-up at the end of
+      the consultation. Making a doctor walk a patient back to the desk to
+      arrange "see me in two weeks" is how follow-ups stop happening.
+
+  appointment.cancel:
+    allow: [owner, facility_admin, front_desk]
+    note: >
+      Narrower than booking. Cancelling somebody who has arranged a day off
+      and transport from another state is not a side effect of a clinician
+      tidying their list; it belongs with the people who will ring them.
+
+  schedule.manage:
+    allow: [owner, facility_admin]
+    note: >
+      Rotas and leave decide what the whole diary offers, so a change reaches
+      every booking made after it. Administration only — and a clinician's
+      own leave goes through them, which is an approval the hospital already
+      has a process for.
+
+  queue.manage:
+    allow: [owner, facility_admin, front_desk, nurse, nurse_in_charge]
+    note: >
+      Whoever is calling patients through. Triage is on this list because
+      moving a sick patient up the queue is a triage decision, and it has to
+      be possible without going to find a clerk.
+
   # ---------------------------------------------------------------- clinical
   clinical.note.read:
     allow: [owner, doctor, consultant, nurse, nurse_in_charge, pharmacist, auditor]

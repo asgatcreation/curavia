@@ -29,6 +29,7 @@ import { useAuth } from "./auth/useAuth";
 import { api } from "./api";
 import {
   IconBoard,
+  IconCalendar,
   IconChart,
   IconChevron,
   IconDesk,
@@ -60,6 +61,13 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/", label: "Front desk", short: "Desk", icon: IconDesk, needs: "patients.view" },
+  {
+    to: "/appointments",
+    label: "Appointments",
+    short: "Diary",
+    icon: IconCalendar,
+    needs: "appointment.view",
+  },
   {
     to: "/triage",
     label: "Triage",

@@ -116,7 +116,9 @@ export function FrontDesk() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary">Check in a booking</Button>
+          <Button variant="secondary" onClick={() => void navigate({ to: "/appointments" })}>
+            Check in a booking
+          </Button>
           <Button variant="primary" onClick={() => void navigate({ to: "/register-patient" })}>
             Register a new patient
           </Button>

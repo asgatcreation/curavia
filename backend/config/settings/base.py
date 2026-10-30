@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "apps.catalogue",
     "apps.onboarding",
     "apps.patients",
+    "apps.scheduling",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -241,6 +242,17 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v1",
+    # Several models have a field called "kind" with different choices, which
+    # is correct naming in each of them — an allergy's kind and an
+    # appointment's kind have nothing to do with each other. Left alone,
+    # drf-spectacular invents names like "KindB8dEnum", and a generated
+    # client would carry that hash into the front end's types.
+    "ENUM_NAME_OVERRIDES": {
+        "AllergyKindEnum": "apps.patients.models.Allergy.Kind",
+        "IdentifierKindEnum": "apps.patients.models.PatientIdentifier.Kind",
+        "AppointmentKindEnum": "apps.scheduling.models.Appointment.Kind",
+        "ScheduleExceptionKindEnum": "apps.scheduling.models.ScheduleException.Kind",
+    },
 }
 
 # --------------------------------------------------------------------------

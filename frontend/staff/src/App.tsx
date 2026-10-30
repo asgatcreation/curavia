@@ -25,6 +25,7 @@ import { AppShell } from "./AppShell";
 import { AuthProvider } from "./auth/AuthProvider";
 import { useAuth } from "./auth/useAuth";
 import { api } from "./api";
+import { Appointments } from "./screens/Appointments";
 import { Consultation } from "./screens/Consultation";
 import { FrontDesk } from "./screens/FrontDesk";
 import { GroupDashboard } from "./screens/GroupDashboard";
@@ -163,6 +164,7 @@ function ShellWithLanding() {
 /** The screens that exist today. Milestone 4 adds the rest. */
 const SCREENS: Record<string, () => React.JSX.Element> = {
   "/": FrontDesk,
+  "/appointments": Appointments,
   "/consultation": Consultation,
   "/pharmacy": Pharmacy,
   "/journey": JourneyBoard,
@@ -197,6 +199,7 @@ function PatientRecordRoute() {
 
 const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/", component: FrontDesk }),
+  createRoute({ getParentRoute: () => rootRoute, path: "/appointments", component: Appointments }),
   createRoute({ getParentRoute: () => rootRoute, path: "/consultation", component: Consultation }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pharmacy", component: Pharmacy }),
   createRoute({ getParentRoute: () => rootRoute, path: "/journey", component: JourneyBoard }),

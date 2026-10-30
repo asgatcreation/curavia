@@ -82,6 +82,12 @@ PERMISSIONS: tuple[Permission, ...] = (
     ),
     _p("clinical.order.create", "Place lab, imaging and medication orders", "clinical"),
     _p("clinical.referral.create", "Refer patients", "clinical"),
+    # -- appointments and queues --------------------------------------------
+    _p("appointment.view", "See the appointment diary", "scheduling"),
+    _p("appointment.book", "Book and move appointments", "scheduling"),
+    _p("appointment.cancel", "Cancel somebody's appointment", "scheduling"),
+    _p("schedule.manage", "Edit clinics, rotas and leave", "scheduling", sensitive=True),
+    _p("queue.manage", "Issue and call token numbers", "scheduling"),
     # -- triage and nursing -------------------------------------------------
     _p("triage.vitals.record", "Record vitals and triage", "triage"),
     _p("triage.note.write", "Write nursing notes", "triage"),

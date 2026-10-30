@@ -66,3 +66,6 @@ backend/tests/test_invitations.py
 # Asserts that an import run inside one hospital wrote nothing into another,
 # which has to be checked from outside both scopes.
 backend/tests/test_import.py
+
+# Tops up every hospital owner role when a milestone adds a permission.
+backend/apps/accounts/role_sync.py
