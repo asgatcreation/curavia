@@ -47,6 +47,16 @@ DEBUG = False
 ALLOWED_HOSTS: list[str] = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 INSTALLED_APPS = [
+    # First, and it has to be first.
+    #
+    # Channels 4 no longer overrides `runserver` itself; `daphne` does, and
+    # only when it comes before django.contrib.staticfiles. Without this the
+    # development server is plain WSGI, every WebSocket is answered with a
+    # 404 from the HTTP URLconf, and the journey board silently never
+    # connects — which is exactly what happened the first time it was opened
+    # in a browser. Production runs daphne directly and would have been fine,
+    # so nothing but using it locally would have caught this.
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -73,6 +83,7 @@ INSTALLED_APPS = [
     "apps.onboarding",
     "apps.patients",
     "apps.scheduling",
+    "apps.journey",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -252,6 +263,8 @@ SPECTACULAR_SETTINGS = {
         "IdentifierKindEnum": "apps.patients.models.PatientIdentifier.Kind",
         "AppointmentKindEnum": "apps.scheduling.models.Appointment.Kind",
         "ScheduleExceptionKindEnum": "apps.scheduling.models.ScheduleException.Kind",
+        # One Stage, used by both the move request and the journey event.
+        "StageEnum": "apps.journey.models.Stage",
     },
 }
 

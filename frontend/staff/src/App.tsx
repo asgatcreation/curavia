@@ -38,6 +38,7 @@ import { PLANNED } from "./screens/planned";
 import { Pharmacy } from "./screens/Pharmacy";
 import { RegisterPatient } from "./screens/RegisterPatient";
 import { StaffAndRoles } from "./screens/StaffAndRoles";
+import { WaitingRoomDisplay } from "./screens/WaitingRoomDisplay";
 import { AcceptInvitation } from "./screens/auth/AcceptInvitation";
 import { SetupWizard } from "./screens/setup/SetupWizard";
 import { SignIn } from "./screens/auth/SignIn";
@@ -59,6 +60,20 @@ import { VerifyEmail } from "./screens/auth/VerifyEmail";
  */
 const GUEST_ONLY = new Set(["/sign-in", "/sign-up"]);
 const TOKEN_DRIVEN = new Set(["/verify-email", "/accept-invitation"]);
+
+/**
+ * Paths that render with no shell and no account at all.
+ *
+ * A waiting-room television has no user to be signed in as, and must not be
+ * sent to a login form: the token in its URL is the whole of its
+ * authorisation, and what that buys is numbers with no names. A prefix
+ * rather than an exact path, because the token is part of it.
+ */
+const PUBLIC_PREFIXES = ["/display/"];
+
+function isPublic(path: string): boolean {
+  return PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
 
 const rootRoute = createRootRoute({ component: Root });
 
@@ -84,7 +99,7 @@ function Gate() {
   // Rendered the same way whether or not anybody is signed in, and before
   // the boot sequence finishes: the token in the URL is the identity that
   // matters on these pages.
-  if (TOKEN_DRIVEN.has(path)) return <Outlet />;
+  if (TOKEN_DRIVEN.has(path) || isPublic(path)) return <Outlet />;
 
   if (status === "booting") return <Splash />;
 
@@ -226,6 +241,11 @@ const routes = [
     getParentRoute: () => rootRoute,
     path: "/accept-invitation",
     component: AcceptInvitation,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/display/$token",
+    component: WaitingRoomDisplay,
   }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-in", component: SignIn }),
   createRoute({ getParentRoute: () => rootRoute, path: "/sign-up", component: SignUp }),

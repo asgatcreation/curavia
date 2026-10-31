@@ -69,3 +69,12 @@ backend/tests/test_import.py
 
 # Tops up every hospital owner role when a milestone adds a permission.
 backend/apps/accounts/role_sync.py
+
+# A waiting-room television has no session — its token in the URL is the only
+# thing that says which hospital it belongs to, so the screen is found
+# unscoped and the scope is then set from the screen itself.
+backend/apps/journey/api/views.py
+backend/apps/journey/consumers.py
+
+# Attacks the one-open-encounter constraint directly.
+backend/tests/test_journey.py

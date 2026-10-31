@@ -28,13 +28,23 @@ from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
 
 from apps.core.ws import TenantScopeWebsocketMiddleware  # noqa: E402
+from apps.core.ws_tickets import TicketAuthMiddleware  # noqa: E402
 from config.routing import websocket_urlpatterns  # noqa: E402
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
         "websocket": AllowedHostsOriginValidator(
-            AuthMiddlewareStack(TenantScopeWebsocketMiddleware(URLRouter(websocket_urlpatterns)))
+            AuthMiddlewareStack(
+                # Between authentication and tenant scope: the session is
+                # used where there is one, and a single-use ticket where
+                # there is not — which is every socket the staff app opens,
+                # because sign-in issues JWTs and creates no session. See
+                # apps/core/ws_tickets.py.
+                TicketAuthMiddleware(
+                    TenantScopeWebsocketMiddleware(URLRouter(websocket_urlpatterns))
+                )
+            )
         ),
     }
 )

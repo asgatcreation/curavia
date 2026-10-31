@@ -217,6 +217,29 @@ permissions:
       moving a sick patient up the queue is a triage decision, and it has to
       be possible without going to find a clerk.
 
+  journey.view:
+    allow:
+      - owner
+      - facility_admin
+      - doctor
+      - consultant
+      - nurse
+      - nurse_in_charge
+      - front_desk
+      - pharmacist
+      - lab_scientist
+      - radiographer
+      - cashier
+      - auditor
+    note: >
+      Wider than the diary, and deliberately so: the board's whole point is
+      that the pharmacy can see a patient is still with the doctor and the
+      laboratory can see one is on the way. It carries names and token
+      numbers, never anything clinical — the triage colour is the most it
+      shows, and that is the one thing everybody handling a queue needs.
+      The store keeper, the accountant and the HR officer are excluded
+      because none of them ever meets a patient.
+
   # ---------------------------------------------------------------- clinical
   clinical.note.read:
     allow: [owner, doctor, consultant, nurse, nurse_in_charge, pharmacist, auditor]

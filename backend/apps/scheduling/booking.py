@@ -298,6 +298,21 @@ def check_in(
         appointment.checked_in_at = timezone.now()
         appointment.save(update_fields=["status", "checked_in_at", "updated_at"])
 
+    # Arriving at the desk is the start of a visit, so the encounter opens
+    # here rather than being a separate thing somebody has to remember. The
+    # import is local because apps.journey reads scheduling's models, and
+    # at module level the two would import each other.
+    from apps.journey import service as journey
+
+    journey.start_encounter(
+        patient=patient,
+        branch=branch,
+        department=department,
+        appointment=appointment,
+        ticket=ticket,
+        reason=appointment.reason if appointment is not None else "",
+    )
+    journey.announce_queue_change(patient.organisation_id, branch.pk)
     return ticket
 
 
@@ -334,6 +349,10 @@ def call_next(*, department, branch, called_to: str = "") -> QueueTicket | None:
     ticket.called_at = timezone.now()
     ticket.called_to = called_to.strip()[:60]
     ticket.save(update_fields=["status", "called_at", "called_to", "updated_at"])
+
+    from apps.journey import service as journey
+
+    journey.announce_queue_change(ticket.organisation_id, branch.pk)
     return ticket
 
 
@@ -372,6 +391,10 @@ def set_ticket_status(ticket: QueueTicket, status: str) -> QueueTicket:
 
     ticket.status = status
     ticket.save(update_fields=fields)
+
+    from apps.journey import service as journey
+
+    journey.announce_queue_change(ticket.organisation_id, ticket.branch_id)
     return ticket
 
 

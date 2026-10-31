@@ -88,6 +88,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "appointment.cancel",
             "schedule.manage",
             "queue.manage",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -108,6 +109,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "triage.vitals.record",
             "appointment.view",
             "appointment.book",
+            "journey.view",
             "lab.order.view",
             "radiology.order.view",
             "inpatient.admit",
@@ -132,6 +134,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "triage.vitals.record",
             "appointment.view",
             "appointment.book",
+            "journey.view",
             "inpatient.admit",
             "lab.order.view",
             "radiology.order.view",
@@ -154,6 +157,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "lab.sample.collect",
             "appointment.view",
             "queue.manage",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -173,6 +177,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "branch.view_all",
             "appointment.view",
             "queue.manage",
+            "journey.view",
         ),
         common=False,
     ),
@@ -190,6 +195,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "appointment.book",
             "appointment.cancel",
             "queue.manage",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -201,6 +207,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "lab.order.view",
             "lab.sample.collect",
             "lab.result.enter",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -222,7 +229,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
         "radiographer",
         "Radiographer / Radiologist",
         "Imaging orders, scheduling and reports.",
-        ("patients.view", "radiology.order.view", "radiology.report.write"),
+        ("patients.view", "radiology.order.view", "radiology.report.write", "journey.view"),
     ),
     RoleTemplate(
         "pharmacist",
@@ -238,6 +245,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "pharmacy.pos.sell",
             "inventory.view",
             "inventory.transfer",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -275,6 +283,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "billing.payment.take",
             "billing.waiver.request",
             "billing.shift.reconcile",
+            "journey.view",
         ),
     ),
     RoleTemplate(
@@ -328,6 +337,7 @@ ROLE_TEMPLATES: tuple[RoleTemplate, ...] = (
             "patients.view",
             "patients.view_all",
             "appointment.view",
+            "journey.view",
             "clinical.note.read",
             "lab.order.view",
             "radiology.order.view",
