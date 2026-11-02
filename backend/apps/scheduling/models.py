@@ -547,3 +547,106 @@ class QueueTicket(BranchScoped):
         """
         end = self.called_at or now or timezone.now()
         return max(int((end - self.issued_at).total_seconds() // 60), 0)
+
+
+class ReminderJob(BranchScoped):
+    """
+    One reminder, queued.
+
+    A row per (appointment, kind) with a unique constraint, which is what
+    makes "exactly once" true rather than intended: retries are normal for
+    queued work, and a retry that texts somebody twice costs the hospital
+    money and makes the system look broken to the patient.
+
+    Kept after sending. It is the answer to "did we actually remind them?",
+    which is the first question asked about every no-show and changes whose
+    problem it is.
+    """
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", _("Queued")
+        SENT = "sent", _("Sent")
+        FAILED = "failed", _("Failed")
+        SKIPPED = "skipped", _("Not sent")
+        CANCELLED = "cancelled", _("Cancelled")
+
+    class Kind(models.TextChoices):
+        DAY_BEFORE = "day_before", _("The day before")
+        SAME_DAY = "same_day", _("A couple of hours before")
+
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE, related_name="reminders")
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.CASCADE, related_name="reminders"
+    )
+
+    kind = models.CharField(max_length=16, choices=Kind)
+    status = models.CharField(max_length=12, choices=Status, default=Status.QUEUED, db_index=True)
+    send_at = models.DateTimeField(db_index=True)
+
+    #: Which channel it actually went by. Blank until it is sent, because
+    #: that is decided at send time from what the patient has on file.
+    channel = models.CharField(max_length=10, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    #: Integer kobo. Email is zero; a text message is not.
+    cost_kobo = models.PositiveIntegerField(default=0)
+    failure_reason = models.CharField(max_length=200, blank=True)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("reminder")
+        ordering = ("send_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["appointment", "kind"], name="one_reminder_per_appointment_per_kind"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["status", "send_at"]),
+            models.Index(fields=["organisation", "status", "send_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} for {self.appointment_id}"
+
+    def finish(self, status: str, reason: str = "") -> None:
+        """Close the job off, stamping whatever that outcome records."""
+        self.status = status
+        self.failure_reason = reason[:200]
+        fields = ["status", "failure_reason", "attempts", "updated_at"]
+        if status == self.Status.SENT:
+            self.sent_at = timezone.now()
+            fields += ["sent_at", "channel", "cost_kobo"]
+        self.save(update_fields=sorted(set(fields)))
+
+
+class NoShowRecord(BranchScoped):
+    """
+    Somebody who did not come.
+
+    Per patient as well as per appointment, because the question a clerk asks
+    is "has this person done this before?" — three is a conversation about
+    whether to hold the slot, and one is Lagos traffic.
+
+    ``was_reminded`` is recorded at the time rather than worked out later: a
+    patient who was never reminded did not miss an appointment so much as the
+    hospital failed to tell them about one, and a report that cannot tell
+    those apart will be used to blame the wrong people.
+    """
+
+    appointment = models.OneToOneField(
+        Appointment, on_delete=models.CASCADE, related_name="no_show"
+    )
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.CASCADE, related_name="no_shows"
+    )
+    missed_at = models.DateTimeField(db_index=True)
+    was_reminded = models.BooleanField(default=False)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("missed appointment")
+        ordering = ("-missed_at",)
+        indexes = [models.Index(fields=["organisation", "patient", "-missed_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.patient_id} missed {self.missed_at:%Y-%m-%d}"

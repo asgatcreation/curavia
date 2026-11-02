@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Badge,
   Button,
@@ -82,6 +83,7 @@ function time(iso: string): string {
 
 export function Appointments() {
   const { me } = useAuth();
+  const navigate = useNavigate();
   const [day, setDay] = useState(today());
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [rows, setRows] = useState<Appointment[] | null>(null);
@@ -131,6 +133,9 @@ export function Appointments() {
               className={cn(inputClass, "min-h-11 w-44 text-sm")}
             />
           </label>
+          <Button variant="secondary" onClick={() => void navigate({ to: "/reminders" })}>
+            Reminders
+          </Button>
           {mayBook && (
             <Button variant="primary" onClick={() => setBooking((open) => !open)}>
               {booking ? "Close" : "Book an appointment"}

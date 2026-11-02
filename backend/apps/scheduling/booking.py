@@ -128,6 +128,13 @@ def book(request: BookingRequest, *, booked_by=None) -> Appointment:
     )
     appointment.full_clean(exclude=["organisation", "branch"])
     appointment.save()
+
+    # Queued here rather than by a nightly sweep: a patient booked this
+    # afternoon for tomorrow morning needs the day-before message now, and a
+    # sweep that runs at midnight would have missed it.
+    from apps.scheduling import reminders
+
+    reminders.schedule_for(appointment)
     return appointment
 
 
@@ -157,6 +164,13 @@ def cancel(appointment: Appointment, *, reason: str, cancelled_by=None) -> Appoi
             "updated_at",
         ]
     )
+
+    # A reminder for an appointment that no longer exists sends somebody
+    # across Lagos for nothing, which is the most damaging thing this
+    # feature could do.
+    from apps.scheduling import reminders
+
+    reminders.cancel_for(appointment, reason="The appointment was cancelled.")
     return appointment
 
 
@@ -408,12 +422,9 @@ def mark_no_shows(*, branch_id, grace_minutes: int = 60) -> int:
     what a hospital uses to decide whether to overbook, so it has to mean
     "did not come", not "was late".
     """
-    cutoff = timezone.now() - dt.timedelta(minutes=grace_minutes)
-    return Appointment.objects.filter(
-        branch_id=branch_id,
-        starts_at__lt=cutoff,
-        status=Appointment.Status.BOOKED,
-    ).update(status=Appointment.Status.NO_SHOW, updated_at=timezone.now())
+    from apps.scheduling import reminders
+
+    return reminders.record_no_shows(branch_id=branch_id, grace_minutes=grace_minutes)
 
 
 __all__ = [

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import views
+from . import reminder_views, views
 
 urlpatterns = [
     path("clinics/", views.ClinicListView.as_view(), name="clinic-list"),
@@ -19,6 +19,15 @@ urlpatterns = [
         "appointments/<uuid:pk>/<str:action>/",
         views.AppointmentActionView.as_view(),
         name="appointment-action",
+    ),
+    path("reminders/", reminder_views.ReminderListView.as_view(), name="reminder-list"),
+    path("reminders/cost/", reminder_views.ReminderCostView.as_view(), name="reminder-cost"),
+    path("reminders/send/", reminder_views.SendNowView.as_view(), name="reminder-send"),
+    path("no-shows/", reminder_views.NoShowListView.as_view(), name="no-show-list"),
+    path(
+        "patients/<uuid:pk>/reminders/",
+        reminder_views.OptOutView.as_view(),
+        name="patient-reminder-preference",
     ),
     path("queue/", views.QueueView.as_view(), name="queue"),
     path("queue/check-in/", views.CheckInView.as_view(), name="queue-check-in"),

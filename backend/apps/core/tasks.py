@@ -140,3 +140,19 @@ def expire_emergency_grants() -> int:
         count = stale.update(revoked_at=timezone.now())
     logger.info("closed %s expired emergency access grant(s)", count)
     return count
+
+
+@shared_task(name="curavia.send_due_reminders")
+def send_due_reminders() -> dict[str, int]:
+    """
+    The scheduled half of appointment reminders.
+
+    Not a ``TenantTask``: it deliberately walks every hospital, which is why
+    it takes no ``organisation_id`` and why the walking is done by the
+    management command it delegates to — one implementation, whether this
+    runs from Celery beat or from a cron entry on a host with no worker.
+    """
+    from django.core.management import call_command
+
+    call_command("send_reminders", no_shows=True)
+    return {"ok": 1}

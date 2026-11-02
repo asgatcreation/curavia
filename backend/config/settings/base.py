@@ -296,6 +296,30 @@ CELERY_WORKER_CONCURRENCY = int(env("CELERY_WORKER_CONCURRENCY", "1"))
 BACKGROUND_TASK_BACKEND = env("BACKGROUND_TASK_BACKEND", "celery")
 
 # --------------------------------------------------------------------------
+# Outside services — milestone 5 onwards
+#
+# Everything third-party is reached through integrations/base.py, and the
+# real adapter is used only when its keys are actually present. A deployment
+# with an empty TERMII_API_KEY falls back to the fake, which records the
+# message and sends nothing — because a misconfigured hospital should fail to
+# text a patient, never text the wrong one.
+#
+# Email is free on Brevo's tier and text messages are not, which is why they
+# are switched on independently.
+# --------------------------------------------------------------------------
+
+BREVO_API_KEY = env("BREVO_API_KEY", "")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "")
+TERMII_API_KEY = env("TERMII_API_KEY", "")
+TERMII_SENDER_ID = env("TERMII_SENDER_ID", "")
+
+INTEGRATION_BACKENDS: dict[str, str] = {}
+if BREVO_API_KEY and DEFAULT_FROM_EMAIL:
+    INTEGRATION_BACKENDS["email"] = "integrations.email.brevo.BrevoEmailProvider"
+if TERMII_API_KEY and TERMII_SENDER_ID:
+    INTEGRATION_BACKENDS["sms"] = "integrations.sms.termii.TermiiSmsProvider"
+
+# --------------------------------------------------------------------------
 # Internationalisation — English first, i18n-ready from day one
 # --------------------------------------------------------------------------
 

@@ -4,6 +4,7 @@ export * from "./api/importing";
 export * from "./api/journey";
 export * from "./api/live";
 export * from "./api/patients";
+export * from "./api/reminders";
 export * from "./api/reporting";
 export * from "./api/scheduling";
 export * from "./api/setup";

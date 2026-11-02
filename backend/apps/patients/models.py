@@ -217,6 +217,14 @@ class Patient(TenantScoped):
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="merged_from"
     )
 
+    #: Honoured everywhere, and checked when a reminder is about to go out
+    #: rather than when it was queued — somebody who says "stop" today must
+    #: not receive the message queued yesterday.
+    reminders_opted_out = models.BooleanField(
+        default=False,
+        help_text=_("The patient asked not to be sent appointment reminders."),
+    )
+
     is_deceased = models.BooleanField(default=False)
     died_on = models.DateField(null=True, blank=True)
 

@@ -78,3 +78,6 @@ backend/apps/journey/consumers.py
 
 # Attacks the one-open-encounter constraint directly.
 backend/tests/test_journey.py
+
+# The scheduled reminder run walks every hospital; the work inside is scoped.
+backend/apps/scheduling/management/commands/send_reminders.py
