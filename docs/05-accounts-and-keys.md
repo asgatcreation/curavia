@@ -1,0 +1,269 @@
+# Accounts and keys — what to sign up for, and when
+
+Nothing here is needed all at once, and **nothing built so far is blocked by
+any of it**. Curavia runs locally today with no third-party account at all:
+every outside service falls back to a fake that records what it would have
+done and sends nothing.
+
+Sign each one up when its milestone arrives. The order below is that order.
+
+**How keys get in:** every value goes in `.env` in the project root, which is
+gitignored and never committed. `.env.example` is the template with every name
+already listed and every value empty — copy it once:
+
+```bash
+cp .env.example .env
+```
+
+Paste each key next to its name, with no quotes and no spaces around the `=`.
+Restart the backend afterwards; settings are read at boot.
+
+---
+
+## Status
+
+| Service | What for | Cost | Needed from | Done? |
+|---|---|---|---|---|
+| **Brevo** | Email: verification, invitations, reminders | **Free** — 300/day | milestone 5 | ☐ |
+| **Termii** | SMS reminders | **Paid** — ~₦3–7 each | milestone 5 (optional) | ☐ |
+| **Paystack** | Card and transfer payments | Free to test | milestone 8 | ☐ |
+| **Neon** | Hosted PostgreSQL | Free tier | milestone 9 | ☐ |
+| **Render** | Hosting | Free tier | milestone 9 | ☐ |
+| **Upstash** | Redis for sockets and jobs | Free tier | milestone 9 | ☐ |
+| **Cloudflare R2** | Private medical file storage | Free tier (10 GB) | milestone 7 | ☐ |
+| **Sentry** | Error tracking | Free tier | milestone 9 | ☐ |
+| **UptimeRobot** | "Is the site up?" | Free | milestone 9 | ☐ |
+| **LiveKit** | Video consultations | Free tier | milestone 13 | ☐ |
+
+---
+
+## 1. Brevo — email. Free, and the one worth doing now
+
+300 emails a day costs nothing, which is comfortable for a clinic doing forty
+appointments. Until this is set up, reminders queue and nothing leaves the
+building — the Reminders screen says so in those words.
+
+1. Go to **brevo.com** and click **Sign up free**.
+2. Use your own email. Confirm the address from the email they send.
+3. They ask what you are sending — choose **Transactional emails**.
+4. In the left sidebar click your name (bottom left) → **SMTP & API**.
+5. Open the **API keys** tab → **Generate a new API key**.
+6. Name it `curavia-dev`. Click **Generate**.
+7. **Copy the key now** — it is shown once. It starts `xkeysib-`.
+8. Paste it into `.env`:
+
+   ```
+   BREVO_API_KEY=xkeysib-…
+   DEFAULT_FROM_EMAIL=
+   ```
+
+9. `DEFAULT_FROM_EMAIL` is the address patients see. For now use the email you
+   signed up with. Brevo will only send from a verified address — go to
+   **Senders, Domains & Dedicated IPs** → **Senders** → **Add a sender**, and
+   confirm the link they email you.
+
+Later, for real hospitals, you will add a domain here so mail comes from
+`noreply@curavia.ng` rather than a personal address. Not needed yet.
+
+---
+
+## 2. Termii — SMS. Paid, so decide with the numbers
+
+**This one costs money every time it runs.** Roughly **₦3 to ₦7 per message**
+in Nigeria, more to a number on the Do-Not-Disturb list. Two reminders per
+appointment means a clinic doing 40 bookings a week is around 320 messages a
+month, so **somewhere near ₦1,000–₦2,200 a month per clinic** — which the
+hospital pays, not you, once this is a product.
+
+Prices move and the figures above come from comparison sites rather than
+Termii's own page, so check the live rate before committing. The Reminders
+screen in Curavia shows the estimate for the next 30 days using real queued
+reminders, so you can see the actual number for a real clinic rather than a
+guess.
+
+**You do not need this to finish Curavia.** Email covers every patient who
+gives an address, and the system is built so SMS can be switched on later
+without changing anything. I would leave it until a real hospital is trialling
+the product and can tell you whether their patients have email addresses.
+
+When you do want it:
+
+1. Go to **termii.com** → **Get started**.
+2. Sign up, confirm your email, and complete the business details they ask for.
+3. You must **fund the wallet** before anything sends — there is no free tier.
+   The dashboard has a **Top up** button; ₦1,000 is plenty to test with.
+4. In the dashboard, go to **Settings** → **API key**, and copy it.
+5. Go to **Sender IDs** → **Request a sender ID**. This is the name that shows
+   as the sender, up to 11 characters, e.g. `Curavia`. **Approval takes one to
+   three working days** and they ask what the messages are for — say
+   "appointment reminders for hospital patients". Until it is approved nothing
+   will send.
+6. Paste both into `.env`:
+
+   ```
+   TERMII_API_KEY=…
+   TERMII_SENDER_ID=Curavia
+   ```
+
+Curavia only uses the real Termii adapter when **both** of those are filled in.
+With either empty it falls back to the fake and the screen says "Text messages
+are off" — it will never quietly pretend to have sent something.
+
+---
+
+## 3. Paystack — payments. Test keys only, milestone 8
+
+1. Go to **paystack.com** → **Create a free account**. Nigerian business
+   details are asked for; you can test before they are approved.
+2. In the dashboard, make sure the toggle at the top left says **Test Mode**.
+3. Go to **Settings** → **API Keys & Webhooks**.
+4. Copy the **Test Public Key** (`pk_test_…`) and the **Test Secret Key**
+   (`sk_test_…`).
+5. Paste them in:
+
+   ```
+   PAYSTACK_PUBLIC_KEY=pk_test_…
+   PAYSTACK_SECRET_KEY=sk_test_…
+   PAYSTACK_WEBHOOK_SECRET=
+   ```
+
+6. The webhook secret comes later, when the app is deployed and has a public
+   URL to receive webhooks at. Leave it empty for now.
+
+**Only ever paste test keys into this file.** Nothing in Curavia needs a live
+key until a real hospital is taking real money, and a live secret key in a
+development `.env` is the one that can actually move money.
+
+---
+
+## 4. Cloudflare R2 — private file storage, milestone 7
+
+Scans, result PDFs and uploaded documents. A **private** bucket, reached only
+through short-lived signed URLs — never a public image CDN.
+
+1. Go to **dash.cloudflare.com** and sign up.
+2. In the sidebar choose **R2 Object Storage**. You will be asked to add a
+   payment card even for the free tier; the free allowance is 10 GB.
+3. Click **Create bucket**, name it `curavia-files`, leave the location
+   automatic.
+4. Go to **Manage R2 API Tokens** → **Create API token**.
+5. Permissions: **Object Read & Write**. Scope it to the bucket you just made.
+6. Copy the **Access Key ID**, the **Secret Access Key**, and the
+   **S3 endpoint** (it looks like
+   `https://<account-id>.r2.cloudflarestorage.com`).
+7. Paste them in and switch storage on:
+
+   ```
+   USE_OBJECT_STORAGE=true
+   S3_BUCKET_NAME=curavia-files
+   S3_ENDPOINT_URL=https://….r2.cloudflarestorage.com
+   S3_ACCESS_KEY_ID=…
+   S3_SECRET_ACCESS_KEY=…
+   ```
+
+**Do not** enable a public domain on this bucket. Medical files must never be
+reachable by anyone holding a URL.
+
+---
+
+## 5. Deployment — Neon, Render, Upstash, Sentry, UptimeRobot. Milestone 9
+
+Do these four together when it is time to put Curavia on the internet.
+
+### Neon — the database
+
+1. **neon.tech** → **Sign up**, with GitHub is easiest.
+2. **Create project**, name it `curavia`, region **AWS eu-central-1** (closest
+   of their free regions to Nigeria).
+3. On the project page, **Connection string** → copy the one marked **Pooled
+   connection**.
+4. `DATABASE_URL=postgresql://…?sslmode=require`
+
+### Upstash — Redis
+
+1. **upstash.com** → **Sign up** → **Create database**.
+2. Name `curavia`, type **Regional**, region **eu-central-1**.
+3. Copy the connection string beginning `rediss://`.
+4. Set all three to the same value:
+
+   ```
+   REDIS_URL=rediss://…
+   CELERY_BROKER_URL=rediss://…
+   CELERY_RESULT_BACKEND=rediss://…
+   ```
+
+### Render — hosting
+
+1. **render.com** → **Get started**, sign in with GitHub.
+2. Authorise it for the `curavia` repository only.
+3. **New** → **Web Service** → pick the repo.
+4. I will give you the exact build and start commands when we get there; they
+   depend on how the final deployment is laid out.
+5. Every value from `.env` has to be re-entered under **Environment** →
+   **Environment Variables**. Render has a **Add from .env** paste box, which
+   is the quick way.
+
+### Sentry — errors
+
+1. **sentry.io** → **Try for free**.
+2. **Create project** → platform **Django** → name `curavia-backend`.
+3. Copy the **DSN** shown on the setup page.
+4. `SENTRY_DSN=https://…@….ingest.sentry.io/…`
+
+### UptimeRobot — is it up?
+
+1. **uptimerobot.com** → **Register for FREE**.
+2. **Add New Monitor** → type **HTTP(s)**, URL `https://<your-render-url>/healthz`.
+3. Interval 5 minutes. Add your email as the alert contact.
+
+No key for this one — it just watches from outside.
+
+---
+
+## 6. LiveKit — video consultations, milestone 13
+
+1. **cloud.livekit.io** → **Sign up**.
+2. **Create project**, name `curavia`.
+3. **Settings** → **Keys** → **Create key**.
+4. Copy the **API Key**, the **API Secret**, and the **WebSocket URL**
+   (`wss://….livekit.cloud`).
+5. ```
+   LIVEKIT_URL=wss://….livekit.cloud
+   LIVEKIT_API_KEY=…
+   LIVEKIT_API_SECRET=…
+   ```
+
+---
+
+## Two things that are generated, not signed up for
+
+Both are needed before deploying, and you make them yourself:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+→ `DJANGO_SECRET_KEY`
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+→ `FIELD_ENCRYPTION_MASTER_KEY` (milestone 6, for HIV status and psychiatric
+notes)
+
+**Keep the encryption key somewhere other than the server.** If it is lost,
+the fields encrypted with it cannot be read by anybody, including you. A
+password manager is the right place.
+
+---
+
+## The rules these follow
+
+- Keys live in `.env`, which is gitignored. They are never committed, never
+  printed in a log, and never pasted into a chat.
+- Every service has a fake, and the fake is the default. A deployment with an
+  empty key **fails to send** rather than sending something unexpected.
+- Test keys only, everywhere, until a real hospital is live.
+- Each service is switched on independently, so one missing key never stops
+  anything else working.
