@@ -35,7 +35,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.clinical import news2, note_templates
-from apps.core.models import BranchScoped
+from apps.core.models import BranchScoped, TenantScoped
 
 
 def hash_content(content: dict | None) -> str:
@@ -563,3 +563,158 @@ class ClinicalNote(BranchScoped):
             # short enough to read aloud down a telephone.
             lines.append(f"Reference {self.content_hash[:8].upper()}")
         return [line for line in lines if line]
+
+
+class Certainty(models.TextChoices):
+    """
+    How sure the clinician is.
+
+    Recorded because a working diagnosis and a confirmed one are different
+    facts, and a record that cannot tell them apart produces two errors: a
+    patient treated for years for something nobody ever confirmed, and a
+    statistics return that counts suspicions as cases.
+    """
+
+    SUSPECTED = "suspected", _("Suspected")
+    CONFIRMED = "confirmed", _("Confirmed")
+    RULED_OUT = "ruled_out", _("Ruled out")
+
+
+class Diagnosis(BranchScoped):
+    """
+    What was decided on one visit.
+
+    The code and its wording are **both stored**. The catalogue in
+    apps/clinical/icd10.py may be corrected or replaced, and what a clinician
+    chose on the day must read the same in five years' time.
+
+    Nothing here is deleted. A diagnosis that turns out to be wrong is marked
+    ``ruled_out`` — which is information, and often the most useful line in a
+    record, because it tells the next doctor what has already been considered
+    and excluded.
+    """
+
+    encounter = models.ForeignKey(
+        "journey.Encounter", on_delete=models.PROTECT, related_name="diagnoses"
+    )
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="diagnoses"
+    )
+
+    code = models.CharField(max_length=12, db_index=True)
+    #: The wording as it was at the time. See the class docstring.
+    title = models.CharField(max_length=200)
+    chapter = models.CharField(max_length=60, blank=True)
+
+    certainty = models.CharField(max_length=12, choices=Certainty, default=Certainty.SUSPECTED)
+    #: Exactly one primary per visit — the reason they came. The service
+    #: demotes the previous one rather than allowing two.
+    is_primary = models.BooleanField(default=False)
+    #: Snapshotted from the catalogue: whether this is something the patient
+    #: has rather than something they are getting over.
+    is_chronic = models.BooleanField(default=False)
+
+    note = models.CharField(max_length=300, blank=True)
+
+    diagnosed_at = models.DateTimeField(default=timezone.now, db_index=True)
+    diagnosed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("diagnosis")
+        verbose_name_plural = _("diagnoses")
+        ordering = ("-is_primary", "diagnosed_at")
+        constraints = [
+            # The same code twice on one visit is always a slip — two doctors
+            # on the same ward round, or a double-click — and it would double
+            # count the patient in every return the hospital files.
+            models.UniqueConstraint(
+                fields=["encounter", "code"],
+                condition=models.Q(archived_at__isnull=True),
+                name="one_diagnosis_per_code_per_encounter",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organisation", "patient", "-diagnosed_at"]),
+            models.Index(fields=["branch", "code", "-diagnosed_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} {self.title}"
+
+    @property
+    def label(self) -> str:
+        return f"{self.code} · {self.title}"
+
+
+class Problem(TenantScoped):
+    """
+    The problem list: what this patient has, across every visit.
+
+    A hospital record without one is a pile of visits. The problem list is
+    what a doctor reads in the fifteen seconds before the patient sits down,
+    and the thing the pharmacy, the laboratory and the ward all need in
+    order to interpret anything else.
+
+    **One row per condition per patient, ever.** Resolving it sets a date;
+    it does not delete the row, and it does not stop the same condition being
+    reopened later — that is the same problem coming back, not a new one. The
+    alternative, a row per episode, produces a list with "Type 2 diabetes"
+    on it four times, which is how a real problem list becomes unreadable and
+    then unread.
+
+    Not branch-scoped: a patient's conditions belong to them, not to the
+    building they were sitting in when somebody wrote them down.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", _("Active")
+        RESOLVED = "resolved", _("Resolved")
+        INACTIVE = "inactive", _("Inactive")
+
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="problems"
+    )
+
+    code = models.CharField(max_length=12, db_index=True)
+    title = models.CharField(max_length=200)
+    chapter = models.CharField(max_length=60, blank=True)
+
+    status = models.CharField(max_length=10, choices=Status, default=Status.ACTIVE, db_index=True)
+    onset_on = models.DateField(null=True, blank=True)
+    resolved_on = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+
+    #: The diagnosis that opened it, where one did. Null for a problem added
+    #: straight to the list — a condition the patient arrives already having.
+    opened_by_diagnosis = models.ForeignKey(
+        Diagnosis, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    opened_at = models.DateTimeField(default=timezone.now)
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    last_noted_at = models.DateTimeField(default=timezone.now)
+
+    class Meta(TenantScoped.Meta):
+        verbose_name = _("problem")
+        ordering = ("status", "-last_noted_at")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "patient", "code"],
+                name="one_problem_per_code_per_patient",
+            )
+        ]
+        indexes = [models.Index(fields=["organisation", "patient", "status"])]
+
+    def __str__(self) -> str:
+        return f"{self.code} {self.title} ({self.status})"
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == self.Status.ACTIVE
+
+    @property
+    def label(self) -> str:
+        return f"{self.code} · {self.title}"

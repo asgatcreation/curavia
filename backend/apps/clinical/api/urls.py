@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import note_views, views
+from . import diagnosis_views, note_views, views
 
 urlpatterns = [
     path("triage/", views.WaitingRoomView.as_view(), name="triage-queue"),
@@ -35,5 +35,27 @@ urlpatterns = [
         "patients/<uuid:pk>/notes/",
         note_views.PatientNotesView.as_view(),
         name="patient-clinical-notes",
+    ),
+    # ------------------------------------------- diagnoses and the problem list
+    path("icd/", diagnosis_views.CodeSearchView.as_view(), name="icd-search"),
+    path(
+        "encounters/<uuid:pk>/diagnoses/",
+        diagnosis_views.EncounterDiagnosesView.as_view(),
+        name="encounter-diagnoses",
+    ),
+    path(
+        "diagnoses/<uuid:pk>/",
+        diagnosis_views.DiagnosisDetailView.as_view(),
+        name="diagnosis-detail",
+    ),
+    path(
+        "patients/<uuid:pk>/problems/",
+        diagnosis_views.ProblemListView.as_view(),
+        name="patient-problems",
+    ),
+    path(
+        "problems/<uuid:pk>/",
+        diagnosis_views.ProblemDetailView.as_view(),
+        name="problem-detail",
     ),
 ]

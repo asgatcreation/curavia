@@ -85,3 +85,6 @@ backend/apps/scheduling/management/commands/send_reminders.py
 # Fills in a clinician's signature details and reads the audit log back, both
 # of which happen before any hospital is in scope.
 backend/tests/test_clinical_notes.py
+
+# Reads the audit log back, which is written outside any one hospital's scope.
+backend/tests/test_diagnoses.py

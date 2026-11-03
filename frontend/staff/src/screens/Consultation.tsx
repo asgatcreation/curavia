@@ -41,6 +41,7 @@ import {
   SectionTitle,
   Stat,
   cn,
+  formatDate,
   formatDateTime,
   inputClass,
   news2Label,
@@ -49,19 +50,23 @@ import {
 import type {
   BoardRow,
   ClinicalNote,
+  CodeResult,
+  Diagnosis,
+  Problem,
   NoteContent,
   NoteTemplate,
   Observation,
   TemplateCatalogue,
   TemplateSection,
 } from "@curavia/shared";
-import { ApiRequestError, ClinicalApi, NotesApi } from "@curavia/shared";
+import { ApiRequestError, ClinicalApi, DiagnosesApi, NotesApi } from "@curavia/shared";
 
 import { api } from "../api";
 import { useAuth } from "../auth/useAuth";
 import { IconWarning } from "../icons";
 
 const notesApi = new NotesApi(api);
+const coding = new DiagnosesApi(api);
 const clinical = new ClinicalApi(api);
 const journey = new JourneyApi(api);
 
@@ -188,6 +193,8 @@ function ConsultationRoom({
   const [notes, setNotes] = useState<ClinicalNote[] | null>(null);
   const [draft, setDraft] = useState<ClinicalNote | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
+  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
+  const [problems, setProblems] = useState<Problem[]>([]);
   const [error, setError] = useState("");
 
   const reload = useCallback(() => {
@@ -196,6 +203,16 @@ function ConsultationRoom({
       setDraft(result.notes.find((note) => note.may_edit) ?? null);
     });
   }, [row.id]);
+
+  // Coding and the problem list reload together: confirming a chronic
+  // diagnosis opens a problem, so showing one without refreshing the other
+  // would leave the screen quietly disagreeing with the record.
+  const reloadCoding = useCallback(() => {
+    void coding.forEncounter(row.id).then((result) => setDiagnoses(result.diagnoses));
+    void coding.problems(row.patient_id).then((result) => setProblems(result.problems));
+  }, [row.id, row.patient_id]);
+
+  useEffect(reloadCoding, [reloadCoding]);
 
   useEffect(() => {
     void notesApi.templates().then(setCatalogue);
@@ -309,6 +326,16 @@ function ConsultationRoom({
             </Card>
           )}
 
+          <DiagnosisPanel
+            diagnoses={diagnoses}
+            canWrite={canWrite}
+            onAdd={(code, certainty) =>
+              coding.add(row.id, { code, certainty }).then(reloadCoding)
+            }
+            onChange={(id, action) => coding.change(id, action).then(reloadCoding)}
+            onRemove={(id) => coding.remove(id).then(reloadCoding)}
+          />
+
           <Card>
             <CardHeader title="Orders" />
             <div className="p-4 text-sm text-slate-600 dark:text-slate-300">
@@ -323,6 +350,13 @@ function ConsultationRoom({
          * What the system already knows
          * ------------------------------------------------------------- */}
         <div className="space-y-5">
+          <ProblemList
+            problems={problems}
+            canWrite={canWrite}
+            onChange={(id, action) => coding.changeProblem(id, action).then(reloadCoding)}
+            onAdd={(code) => coding.addProblem(row.patient_id, { code }).then(reloadCoding)}
+          />
+
           <Card>
             <CardHeader
               title="Latest vitals"
@@ -1103,4 +1137,373 @@ function vitalsOf(observation: Observation): { label: string; value: string; uni
   push("Breaths", observation.respiration_rate, "/min");
   push("Weight", observation.weight_kg, "kg");
   return rows;
+}
+
+/* ------------------------------------------------------------------------
+ * Coding the visit
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Diagnoses for this visit.
+ *
+ * The search is the whole feature. A doctor types what they would say —
+ * "BP", "sugar", "runs" — and the right code has to be the first thing in
+ * the list, because a code list that needs reading is a code list that gets
+ * ignored, and then every patient in the hospital is recorded under "fever,
+ * unspecified".
+ *
+ * Certainty is chosen when the code is added, not afterwards, and the two
+ * buttons say what they mean: Suspected for a working diagnosis and
+ * Confirmed for one that has been established. Confirming a long-term
+ * condition is what puts it on the patient's problem list, so the list says
+ * so beside the code rather than letting it happen invisibly.
+ */
+function DiagnosisPanel({
+  diagnoses,
+  canWrite,
+  onAdd,
+  onChange,
+  onRemove,
+}: {
+  diagnoses: Diagnosis[];
+  canWrite: boolean;
+  onAdd: (code: string, certainty: "suspected" | "confirmed") => Promise<unknown>;
+  onChange: (id: string, action: "primary" | "rule_out") => Promise<unknown>;
+  onRemove: (id: string) => Promise<unknown>;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<CodeResult[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const text = query.trim();
+    // The clearing happens inside the timer rather than here: a state
+    // change written straight into an effect body runs before the browser
+    // paints and makes the list flicker as somebody types.
+    const timer = window.setTimeout(() => {
+      if (text.length < 2) {
+        setResults([]);
+        return;
+      }
+      void coding
+        .search(text)
+        .then((result) => setResults(result.results))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  async function run(work: Promise<unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      await work;
+      setQuery("");
+      setResults([]);
+    } catch (exc) {
+      setError(exc instanceof ApiRequestError ? exc.message : "That could not be recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const active = diagnoses.filter((item) => item.certainty !== "ruled_out");
+  const excluded = diagnoses.filter((item) => item.certainty === "ruled_out");
+
+  return (
+    <Card>
+      <CardHeader title="Diagnoses" count={active.length} />
+
+      {canWrite && (
+        <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400">
+              Add a diagnosis
+            </span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Type what you would say — malaria, BP, sugar, UTI"
+              className={inputClass}
+            />
+          </label>
+
+          {results.length > 0 && (
+            <ul className="mt-2 divide-y divide-slate-200 rounded-[var(--radius-control)] border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+              {results.map((result) => (
+                <li key={result.code} className="flex flex-wrap items-center gap-2 p-2.5">
+                  <div className="min-w-0 flex-1 basis-48">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {result.label}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {result.chapter}
+                      {result.chronic && " · long-term condition"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void run(onAdd(result.code, "suspected"))}
+                  >
+                    Suspected
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void run(onAdd(result.code, "confirmed"))}
+                  >
+                    Confirmed
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {query.trim().length >= 2 && results.length === 0 && (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Nothing matches that yet. Try the condition rather than the symptom, or a shorter
+              word.
+            </p>
+          )}
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-2 rounded-[var(--radius-control)] bg-critical-soft p-2.5 text-sm font-medium text-critical-ink dark:bg-critical/15 dark:text-critical"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {diagnoses.length === 0 ? (
+        <EmptyState
+          title="This visit has not been coded yet."
+          hint={
+            canWrite
+              ? "What you choose here is what the hospital reports, and what the next doctor reads first."
+              : undefined
+          }
+        />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {[...active, ...excluded].map((diagnosis) => (
+            <li
+              key={diagnosis.id}
+              className={cn("p-4", diagnosis.certainty === "ruled_out" && "opacity-70")}
+            >
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="font-semibold text-slate-900 dark:text-white">{diagnosis.label}</p>
+                  {/* The certainty is the badge on the right. Printing it
+                   * here as well read as "Confirmed · Confirmed · the
+                   * doctor's name" on the first patient this was tried on. */}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {diagnosis.diagnosed_by_name || "Recorded"} ·{" "}
+                    {formatDateTime(diagnosis.diagnosed_at)}
+                  </p>
+                  {diagnosis.note && (
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                      {diagnosis.note}
+                    </p>
+                  )}
+                </div>
+                {diagnosis.is_primary && <Badge tone="info">Main</Badge>}
+                <Badge
+                  tone={
+                    diagnosis.certainty === "confirmed"
+                      ? "stable"
+                      : diagnosis.certainty === "ruled_out"
+                        ? "neutral"
+                        : "warning"
+                  }
+                >
+                  {diagnosis.certainty_label}
+                </Badge>
+              </div>
+
+              {canWrite && diagnosis.certainty !== "ruled_out" && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {!diagnosis.is_primary && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void run(onChange(diagnosis.id, "primary"))}
+                    >
+                      Make it the main one
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void run(onChange(diagnosis.id, "rule_out"))}
+                  >
+                    Rule out
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void run(onRemove(diagnosis.id))}
+                  >
+                    Entered in error
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * The problem list.
+ *
+ * First card in the column, above the vitals, because it is what a doctor
+ * reads in the fifteen seconds before the patient sits down. Active
+ * conditions are never mixed with old ones: the history matters, and it
+ * belongs underneath.
+ */
+function ProblemList({
+  problems,
+  canWrite,
+  onChange,
+  onAdd,
+}: {
+  problems: Problem[];
+  canWrite: boolean;
+  onChange: (id: string, action: "resolve" | "reopen") => Promise<unknown>;
+  onAdd: (code: string) => Promise<unknown>;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<CodeResult[]>([]);
+
+  useEffect(() => {
+    const text = query.trim();
+    const timer = window.setTimeout(() => {
+      if (text.length < 2) {
+        setResults([]);
+        return;
+      }
+      void coding
+        .search(text)
+        .then((result) => setResults(result.results))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const active = problems.filter((problem) => problem.is_active);
+  const closed = problems.filter((problem) => !problem.is_active);
+
+  return (
+    <Card>
+      <CardHeader
+        title="Problem list"
+        count={active.length}
+        actions={
+          canWrite ? (
+            <Button size="sm" variant="ghost" onClick={() => setAdding(!adding)}>
+              {adding ? "Cancel" : "+ Add"}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {adding && (
+        <div className="border-b border-slate-200 p-4 dark:border-slate-800">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="A condition they already have"
+            className={inputClass}
+          />
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            For something diagnosed elsewhere. A condition confirmed here reaches this list on its
+            own.
+          </p>
+          {results.length > 0 && (
+            <ul className="mt-2 divide-y divide-slate-200 rounded-[var(--radius-control)] border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+              {results.slice(0, 6).map((result) => (
+                <li key={result.code}>
+                  <button
+                    type="button"
+                    className="w-full p-2.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    onClick={() =>
+                      void onAdd(result.code).then(() => {
+                        setQuery("");
+                        setResults([]);
+                        setAdding(false);
+                      })
+                    }
+                  >
+                    {result.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {problems.length === 0 ? (
+        <EmptyState title="Nothing on this patient's problem list." />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {[...active, ...closed].map((problem) => (
+            <li key={problem.id} className={cn("p-4", !problem.is_active && "opacity-70")}>
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {problem.label}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {problem.is_active
+                      ? problem.onset_on
+                        ? `Since ${formatDate(problem.onset_on)}`
+                        : "Active"
+                      : problem.status === "resolved"
+                        ? `Resolved ${problem.resolved_on ? formatDate(problem.resolved_on) : ""}`
+                        : "No longer thought to be present"}
+                  </p>
+                  {problem.note && (
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                      {problem.note}
+                    </p>
+                  )}
+                </div>
+                {problem.is_active && <Badge tone="warning">Active</Badge>}
+              </div>
+
+              {canWrite && (
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      void onChange(problem.id, problem.is_active ? "resolve" : "reopen")
+                    }
+                  >
+                    {problem.is_active ? "Mark resolved" : "It has come back"}
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
 }
