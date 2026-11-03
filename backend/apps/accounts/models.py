@@ -300,6 +300,24 @@ class StaffMembership(TenantScoped):
         "core.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="staff"
     )
 
+    # -- what prints under a signed clinical note ---------------------------
+    #
+    # Here rather than on User because they belong to this person AT THIS
+    # HOSPITAL: a visiting consultant is "Consultant Physician" in one
+    # hospital and "Honorary Consultant" in another, and a locum's job title
+    # is not a property of their account. The note itself keeps a snapshot of
+    # these taken at the moment of signing — see
+    # apps/clinical/models.ClinicalNote — so correcting a typo here never
+    # alters a note already signed.
+    qualifications = models.CharField(
+        max_length=120, blank=True, help_text=_("For example MBBS, FWACS.")
+    )
+    professional_registration = models.CharField(
+        max_length=60,
+        blank=True,
+        help_text=_("The council number printed on a note, for example MDCN 54321."),
+    )
+
     is_active = models.BooleanField(default=True, db_index=True)
     started_on = models.DateField(default=timezone.localdate)
     deactivated_at = models.DateTimeField(null=True, blank=True)

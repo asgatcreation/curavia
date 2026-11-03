@@ -81,3 +81,7 @@ backend/tests/test_journey.py
 
 # The scheduled reminder run walks every hospital; the work inside is scoped.
 backend/apps/scheduling/management/commands/send_reminders.py
+
+# Fills in a clinician's signature details and reads the audit log back, both
+# of which happen before any hospital is in scope.
+backend/tests/test_clinical_notes.py

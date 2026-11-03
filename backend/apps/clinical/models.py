@@ -23,6 +23,8 @@ reacted to a hypertensive crisis that never happened.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 from decimal import Decimal
 
 from django.conf import settings
@@ -32,8 +34,22 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.clinical import news2
+from apps.clinical import news2, note_templates
 from apps.core.models import BranchScoped
+
+
+def hash_content(content: dict | None) -> str:
+    """
+    A stable fingerprint of a note's wording.
+
+    Canonical JSON — keys sorted, no insignificant whitespace — so the same
+    note hashes the same however the client happened to order its fields,
+    and so a hash computed on a signed note years later still matches. The
+    hash is what a signature is over, what ``ClinicalNote.save()`` checks,
+    and what a QR code on a printed note will verify against.
+    """
+    canonical = json.dumps(content or {}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class TriageCategory(models.TextChoices):
@@ -370,3 +386,180 @@ class NursingNote(BranchScoped):
             raise ValidationError({"body": _("A note needs something in it.")})
         if self.amends_id and self.kind != self.Kind.ADDENDUM:
             raise ValidationError({"kind": _("A note that amends another one is an addendum.")})
+
+
+class ClinicalNote(BranchScoped):
+    """
+    What a clinician wrote about one visit.
+
+    Three properties, in the order they mattered while this was designed.
+
+    **A signed note never changes.** Signing computes a hash of the content
+    and stores it; ``save()`` refuses to write a signed row whose content no
+    longer matches its hash, wherever in the codebase that write comes from.
+    A clinical record that can be quietly rewritten after a complaint is not
+    a record, and the person it protects first is the clinician.
+
+    **An amendment is a new version, not an edit.** ``amend`` opens version
+    N+1 as a draft pointing at the version it follows, with a reason. The
+    earlier version stays signed and readable forever. What was known, and
+    when, is the whole question in a case review.
+
+    **A draft is a working document.** Before it is signed, the author's
+    autosave overwrites it as often as they type, because the alternative is
+    a doctor losing a consultation to a dropped connection. The draft is
+    nobody else's evidence yet: it is marked as unsigned everywhere it is
+    shown, and nothing downstream acts on it.
+
+    ``thread`` ties the versions together: every version of one note carries
+    the first version's id, so the history is one query rather than a walk
+    up the ``supersedes`` chain.
+
+    The content is JSON keyed by the section keys of its template — see
+    apps/clinical/note_templates.py. Keyed rather than positional, so a
+    template that gains a section later still reads back correctly, and
+    stored rather than referenced, so changing a template cannot alter the
+    words somebody signed.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", _("Draft")
+        SIGNED = "signed", _("Signed")
+
+    encounter = models.ForeignKey(
+        "journey.Encounter", on_delete=models.PROTECT, related_name="clinical_notes"
+    )
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="clinical_notes"
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="clinical_notes"
+    )
+
+    template_key = models.CharField(max_length=32, default=note_templates.DEFAULT_TEMPLATE)
+    content = models.JSONField(default=dict, blank=True)
+
+    status = models.CharField(max_length=8, choices=Status, default=Status.DRAFT, db_index=True)
+
+    #: The first version's id, carried by every version of the same note.
+    thread = models.UUIDField(db_index=True)
+    version = models.PositiveSmallIntegerField(default=1)
+    #: The version this one amends. Null on a first version.
+    supersedes = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="superseded_by_note"
+    )
+    #: True on the newest version of the thread. The one a screen shows.
+    is_current = models.BooleanField(default=True)
+    amendment_reason = models.CharField(max_length=300, blank=True)
+
+    signed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    signed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+
+    # -- the signature, snapshotted -----------------------------------------
+    #
+    # Copied onto the note at the moment of signing rather than read through
+    # the author's profile. A consultant who leaves, changes their name, or
+    # has a registration number corrected must not retroactively alter what
+    # is printed under a note they signed two years ago.
+    signature_name = models.CharField(max_length=160, blank=True)
+    signature_qualifications = models.CharField(max_length=120, blank=True)
+    signature_registration = models.CharField(max_length=60, blank=True)
+    signature_role = models.CharField(max_length=120, blank=True)
+
+    #: SHA-256 of the canonical content at the moment of signing. Also what a
+    #: QR-verifiable PDF of this note will be checked against.
+    content_hash = models.CharField(max_length=64, blank=True)
+
+    #: Needs ``clinical.sensitive.view`` to read. Set by the author, because
+    #: only they know that the note names an HIV result or a psychiatric
+    #: history; field-level encryption arrives with the key in .env.
+    is_sensitive = models.BooleanField(default=False)
+
+    last_saved_at = models.DateTimeField(default=timezone.now)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("clinical note")
+        ordering = ("-signed_at", "-last_saved_at")
+        constraints = [
+            # One open draft per clinician, per visit, per template. A second
+            # one is always an accident — two tabs, or a double-click on
+            # "start a note" — and it would split one consultation in half.
+            models.UniqueConstraint(
+                fields=["encounter", "author", "template_key"],
+                # A discarded draft is archived rather than deleted, and must
+                # not hold the slot against the next one.
+                condition=models.Q(status="draft", archived_at__isnull=True),
+                name="one_draft_note_per_author_per_template",
+            ),
+            models.UniqueConstraint(
+                fields=["thread", "version"], name="unique_version_per_note_thread"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organisation", "patient", "-signed_at"]),
+            models.Index(fields=["encounter", "status"]),
+            models.Index(fields=["thread", "version"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.template_key} v{self.version} ({self.status})"
+
+    @property
+    def is_signed(self) -> bool:
+        return self.status == self.Status.SIGNED
+
+    @property
+    def is_amendment(self) -> bool:
+        return self.version > 1
+
+    def save(self, *args, **kwargs) -> None:
+        """
+        Refuse to write a signed note whose content has been changed.
+
+        The last line of defence rather than the first — the service raises a
+        clear error long before this — but it is the one that holds for code
+        written later by somebody who does not know the rule. A guard that
+        only lives in a service function is a guard that will be walked
+        around the first time somebody uses ``.update()`` or the admin.
+        """
+        if (
+            self.status == self.Status.SIGNED
+            and self.content_hash
+            and hash_content(self.content) != self.content_hash
+        ):
+            raise ValidationError(
+                _("This note is signed. Its wording cannot be changed — add an amendment instead.")
+            )
+        super().save(*args, **kwargs)
+
+    def signature_block(self) -> list[str]:
+        """
+        The stamp, as the lines it prints on a screen or a PDF.
+
+        Empty until the note is signed, so a draft cannot be made to look
+        like a signed document by a screenshot.
+        """
+        if not self.is_signed:
+            return []
+        lines = [self.signature_name]
+        if self.signature_qualifications:
+            lines.append(self.signature_qualifications)
+        if self.signature_registration:
+            lines.append(self.signature_registration)
+        if self.signature_role:
+            lines.append(self.signature_role)
+        if self.signed_at:
+            # Lagos time, not UTC. Found in the browser: the stamp read
+            # "08:50" while the list beside it read "09:50", because a
+            # stored datetime is UTC and only `localtime` puts it back into
+            # the hospital's own clock. An hour's disagreement on the face of
+            # a signed document is the kind of detail a lawyer reads out.
+            signed = timezone.localtime(self.signed_at)
+            lines.append(f"Signed {signed:%d %b %Y at %H:%M}")
+        if self.content_hash:
+            # Eight characters is enough to compare two printouts by eye and
+            # short enough to read aloud down a telephone.
+            lines.append(f"Reference {self.content_hash[:8].upper()}")
+        return [line for line in lines if line]
