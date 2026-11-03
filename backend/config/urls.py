@@ -33,6 +33,7 @@ api_v1 = [
     path("", include("apps.patients.api.urls")),
     path("", include("apps.scheduling.api.urls")),
     path("", include("apps.journey.api.urls")),
+    path("", include("apps.clinical.api.urls")),
     path("", include("apps.core.api.urls")),
 ]
 

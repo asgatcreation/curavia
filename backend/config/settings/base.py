@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "apps.patients",
     "apps.scheduling",
     "apps.journey",
+    "apps.clinical",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -265,6 +266,7 @@ SPECTACULAR_SETTINGS = {
         "ScheduleExceptionKindEnum": "apps.scheduling.models.ScheduleException.Kind",
         # One Stage, used by both the move request and the journey event.
         "StageEnum": "apps.journey.models.Stage",
+        "NursingNoteKindEnum": "apps.clinical.models.NursingNote.Kind",
     },
 }
 
