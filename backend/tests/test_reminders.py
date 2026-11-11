@@ -251,20 +251,24 @@ def test_an_appointment_sooner_than_the_lead_time_gets_fewer(hospital, clinic, s
     Book — a "see you tomorrow" message about an appointment three hours
     away, which costs money and reads as a mistake.
     """
-    today = timezone.localdate()
+    soon = timezone.now() + dt.timedelta(hours=3)
+    soon = soon.replace(minute=(soon.minute // 15) * 15, second=0, microsecond=0)
+    # The weekday of the APPOINTMENT, not of today. Run after nine in the
+    # evening in Lagos, three hours from now is tomorrow, and a rota created
+    # for today then does not cover it — so this failed for three hours
+    # every night and passed every time anybody looked at it.
+    appointment_day = timezone.localtime(soon).date()
     with hospital.scope():
         row = DoctorSchedule.objects.create(
             organisation=hospital.organisation,
             branch=hospital.main_branch,
             clinic=clinic,
             staff=schedule.staff,
-            weekday=today.weekday(),
+            weekday=appointment_day.weekday(),
             starts_at=dt.time(0, 0),
             ends_at=dt.time(23, 45),
             slot_minutes=15,
         )
-        soon = timezone.now() + dt.timedelta(hours=3)
-        soon = soon.replace(minute=(soon.minute // 15) * 15, second=0, microsecond=0)
         appointment = booking.book(
             booking.BookingRequest(
                 patient=make_patient(hospital), clinic=clinic, schedule=row, starts_at=soon
