@@ -20,7 +20,7 @@ Restart the backend afterwards; settings are read at boot.
 
 ---
 
-## Where this stands after milestone 6b
+## Where this stands after milestone 6e
 
 Milestone 6 adds **no new third-party account**. Consultation notes, signing
 and amendments need nothing outside Curavia.
@@ -29,6 +29,22 @@ The only outstanding item in the list below that any finished milestone can
 use today is **Brevo**, which is free, and the SMS provider, which is not.
 Everything else belongs to a milestone that has not been built yet, so there
 is nothing to gain by signing up early.
+
+Milestone 6e adds **one setting you must change before a real patient is
+given a certificate**, and no account:
+
+```
+CURAVIA_PUBLIC_URL=https://your-real-domain
+```
+
+Every sick note and fitness certificate is printed with a QR code, and that
+code contains this address. An employer scans it months later, from a phone,
+on a piece of paper that cannot be reissued — so the address has to be the
+one your patients can actually reach, and it cannot be worked out from the
+request, because then anybody could put their own address on your hospital's
+certificate. It defaults to `http://localhost:8010`, which is correct while
+you are developing and wrong the moment the system is live. Set it when you
+set up hosting at milestone 9; there is nothing to sign up for.
 
 One clarification on `FIELD_ENCRYPTION_MASTER_KEY`, which `.env.example`
 marks as "milestone 6": a note marked sensitive is already withheld from
