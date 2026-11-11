@@ -82,6 +82,19 @@ PERMISSIONS: tuple[Permission, ...] = (
     ),
     _p("clinical.order.create", "Place lab, imaging and medication orders", "clinical"),
     _p("clinical.referral.create", "Refer patients", "clinical"),
+    # -- consent and the paper the hospital issues ---------------------------
+    _p("consent.read", "See what a patient has agreed to", "clinical"),
+    _p("consent.take", "Record a patient's consent or refusal", "clinical"),
+    _p("consent.withdraw", "Record that a patient has withdrawn consent", "clinical"),
+    _p("document.read", "Read medical reports and certificates", "clinical"),
+    _p("document.write", "Draft a medical report, sick note or certificate", "clinical"),
+    _p(
+        "document.issue",
+        "Sign and issue a certificate in your own name",
+        "clinical",
+        sensitive=True,
+    ),
+    _p("document.revoke", "Withdraw a certificate already issued", "clinical", sensitive=True),
     # -- appointments and queues --------------------------------------------
     _p("appointment.view", "See the appointment diary", "scheduling"),
     _p("appointment.book", "Book and move appointments", "scheduling"),

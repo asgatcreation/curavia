@@ -52,7 +52,14 @@ import type {
   BoardRow,
   ClinicalNote,
   CodeResult,
+  Consent,
+  ConsentForm,
+  ConsentInput,
+  ConsentMethod,
+  ConsentOutcome,
   Diagnosis,
+  DocumentTemplate,
+  IssuedDocument,
   Order,
   OrderInput,
   OrderKind,
@@ -61,13 +68,21 @@ import type {
   Referral,
   ReferralKind,
   ServiceResult,
+  StatusTone,
   NoteContent,
   NoteTemplate,
   Observation,
   TemplateCatalogue,
   TemplateSection,
 } from "@curavia/shared";
-import { ApiRequestError, ClinicalApi, DiagnosesApi, NotesApi, OrdersApi } from "@curavia/shared";
+import {
+  ApiRequestError,
+  ClinicalApi,
+  DiagnosesApi,
+  DocumentsApi,
+  NotesApi,
+  OrdersApi,
+} from "@curavia/shared";
 
 import { api } from "../api";
 import { useAuth } from "../auth/useAuth";
@@ -76,6 +91,7 @@ import { IconWarning } from "../icons";
 const notesApi = new NotesApi(api);
 const coding = new DiagnosesApi(api);
 const orderApi = new OrdersApi(api);
+const paperwork = new DocumentsApi(api);
 const clinical = new ClinicalApi(api);
 const journey = new JourneyApi(api);
 
@@ -124,6 +140,9 @@ export function Consultation() {
         canAmend={me?.permissions.includes("clinical.note.amend") ?? false}
         canOrder={me?.permissions.includes("clinical.order.create") ?? false}
         canRefer={me?.permissions.includes("clinical.referral.create") ?? false}
+        canTakeConsent={me?.permissions.includes("consent.take") ?? false}
+        canWriteDocument={me?.permissions.includes("document.write") ?? false}
+        canIssueDocument={me?.permissions.includes("document.issue") ?? false}
         canWrite={me?.permissions.includes("clinical.note.write") ?? false}
         canSign={me?.permissions.includes("clinical.note.sign") ?? false}
         onClose={() => {
@@ -194,6 +213,9 @@ function ConsultationRoom({
   canAmend,
   canOrder,
   canRefer,
+  canTakeConsent,
+  canWriteDocument,
+  canIssueDocument,
   onClose,
 }: {
   row: BoardRow;
@@ -202,6 +224,9 @@ function ConsultationRoom({
   canAmend: boolean;
   canOrder: boolean;
   canRefer: boolean;
+  canTakeConsent: boolean;
+  canWriteDocument: boolean;
+  canIssueDocument: boolean;
   onClose: () => void;
 }) {
   const [catalogue, setCatalogue] = useState<TemplateCatalogue | null>(null);
@@ -213,6 +238,10 @@ function ConsultationRoom({
   const [orders, setOrders] = useState<Order[]>([]);
   const [basketTotal, setBasketTotal] = useState(0);
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [consents, setConsents] = useState<Consent[]>([]);
+  const [consentForms, setConsentForms] = useState<ConsentForm[]>([]);
+  const [paperDocs, setPaperDocs] = useState<IssuedDocument[]>([]);
+  const [docTemplates, setDocTemplates] = useState<DocumentTemplate[]>([]);
   const [error, setError] = useState("");
 
   const reload = useCallback(() => {
@@ -241,6 +270,31 @@ function ConsultationRoom({
   }, [row.id]);
 
   useEffect(reloadOrders, [reloadOrders]);
+
+  // Consents and documents load together because they are one question on
+  // the screen — what paper does this visit have — and two spinners in one
+  // column read as two things being broken.
+  const reloadPaperwork = useCallback(() => {
+    void paperwork.paperworkFor(row.id).then((result) => {
+      setConsents(result.consents);
+      setPaperDocs(result.documents);
+    });
+  }, [row.id]);
+
+  useEffect(reloadPaperwork, [reloadPaperwork]);
+
+  useEffect(() => {
+    // The catalogues never change during a consultation, so they are read
+    // once rather than with every reload.
+    void paperwork
+      .consentForms()
+      .then((result) => setConsentForms(result.forms))
+      .catch(() => setConsentForms([]));
+    void paperwork
+      .documentTemplates()
+      .then((result) => setDocTemplates(result.templates))
+      .catch(() => setDocTemplates([]));
+  }, []);
 
   useEffect(() => {
     void notesApi.templates().then(setCatalogue);
@@ -378,12 +432,44 @@ function ConsultationRoom({
             canRefer={canRefer}
             onRefer={(input) => orderApi.refer(row.id, input).then(reloadOrders)}
           />
+
+          <DocumentsPanel
+            documents={paperDocs}
+            templates={docTemplates}
+            canWrite={canWriteDocument}
+            canIssue={canIssueDocument}
+            onDraft={(templateKey) =>
+              paperwork
+                .draft(row.patient_id, { template_key: templateKey, encounter_id: row.id })
+                .then(reloadPaperwork)
+            }
+            onUpdate={(id, content) =>
+              paperwork.updateDraft(id, content).then(reloadPaperwork)
+            }
+            onIssue={(id) => paperwork.issue(id).then(reloadPaperwork)}
+            onRevoke={(id, reason) => paperwork.revoke(id, reason).then(reloadPaperwork)}
+          />
         </div>
 
         {/* ------------------------------------------------------------- *
          * What the system already knows
          * ------------------------------------------------------------- */}
         <div className="space-y-5">
+          <ConsentPanel
+            consents={consents}
+            forms={consentForms}
+            canTake={canTakeConsent}
+            patientName={row.patient_name}
+            onTake={(input) =>
+              paperwork
+                .takeConsent(row.patient_id, { ...input, encounter_id: row.id })
+                .then(reloadPaperwork)
+            }
+            onWithdraw={(id, reason) =>
+              paperwork.withdrawConsent(id, reason).then(reloadPaperwork)
+            }
+          />
+
           <ProblemList
             problems={problems}
             canWrite={canWrite}
@@ -2149,5 +2235,751 @@ function ReferralsPanel({
         </ul>
       )}
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------------
+ * Consent
+ * ---------------------------------------------------------------------- */
+
+/**
+ * What the patient has agreed to.
+ *
+ * The statements are rendered from the consent record, never from the
+ * catalogue. They are the same text today; the whole point of snapshotting
+ * them is that after the next deployment they will not be, and the record
+ * has to keep showing what this patient was actually read.
+ *
+ * Refusal is a first-class outcome here, not a missing row. "Offered an HIV
+ * test and declined, wants to talk to his wife first" is a clinical fact
+ * the next clinician needs, and a screen that only recorded agreement would
+ * make it indistinguishable from nobody having asked.
+ */
+function ConsentPanel({
+  consents,
+  forms,
+  canTake,
+  patientName,
+  onTake,
+  onWithdraw,
+}: {
+  consents: Consent[];
+  forms: ConsentForm[];
+  canTake: boolean;
+  patientName: string;
+  onTake: (input: ConsentInput) => Promise<unknown>;
+  onWithdraw: (id: string, reason: string) => Promise<unknown>;
+}) {
+  const [picked, setPicked] = useState<ConsentForm | null>(null);
+  const [error, setError] = useState("");
+
+  const active = consents.filter((row) => row.is_active);
+
+  return (
+    <Card>
+      <CardHeader
+        title="Consent"
+        count={consents.length}
+        actions={
+          canTake && !picked ? (
+            <Button size="sm" variant="ghost" onClick={() => setPicked(forms[0] ?? null)}>
+              + Take consent
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {picked && canTake && (
+        <TakeConsent
+          forms={forms}
+          form={picked}
+          patientName={patientName}
+          onPick={setPicked}
+          onCancel={() => {
+            setPicked(null);
+            setError("");
+          }}
+          onDone={async (input) => {
+            setError("");
+            try {
+              await onTake(input);
+              setPicked(null);
+            } catch (exc) {
+              setError(
+                exc instanceof ApiRequestError ? exc.message : "That could not be recorded.",
+              );
+            }
+          }}
+        />
+      )}
+
+      {error && (
+        <p className="border-b border-slate-200 px-4 pb-3 text-sm font-medium text-critical dark:border-slate-800">
+          {error}
+        </p>
+      )}
+
+      {consents.length === 0 ? (
+        <EmptyState
+          title="Nothing has been asked yet."
+          hint={canTake ? undefined : "Your role cannot take consent."}
+        />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {consents.map((row) => (
+            <ConsentRow
+              key={row.id}
+              consent={row}
+              canWithdraw={canTake}
+              onWithdraw={(reason) => {
+                void onWithdraw(row.id, reason);
+              }}
+            />
+          ))}
+        </ul>
+      )}
+
+      {active.length > 0 && (
+        <p className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          {active.length === 1 ? "One consent stands" : `${active.length} consents stand`} on this
+          record. Each shows the words the patient was given at the time.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function ConsentRow({
+  consent,
+  canWithdraw,
+  onWithdraw,
+}: {
+  consent: Consent;
+  canWithdraw: boolean;
+  onWithdraw: (reason: string) => void;
+}) {
+  const [showWords, setShowWords] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const tone: StatusTone =
+    consent.status === "given" ? "stable" : consent.status === "refused" ? "warning" : "neutral";
+
+  return (
+    <li className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-900 dark:text-white">
+            {consent.form_name}
+            {consent.subject && ` — ${consent.subject}`}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {consent.given_by_name}
+            {consent.given_by_relationship && ` (${consent.given_by_relationship})`} ·{" "}
+            {consent.method_label} · {formatDateTime(consent.given_at)}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Taken by {consent.taken_by_name}
+            {consent.witness_name && `, witnessed by ${consent.witness_name}`}
+          </p>
+        </div>
+        <Badge tone={tone}>{consent.status_label}</Badge>
+      </div>
+
+      {consent.refused_reason && (
+        <p className="mt-2 text-sm text-warning-ink dark:text-warning">
+          Refused: {consent.refused_reason}
+        </p>
+      )}
+      {consent.withdrawn_reason && (
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          Withdrawn: {consent.withdrawn_reason}
+        </p>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setShowWords((shown) => !shown)}>
+          {showWords ? "Hide the wording" : "Show the wording"}
+        </Button>
+        {canWithdraw && consent.is_active && !withdrawing && (
+          <Button size="sm" variant="ghost" onClick={() => setWithdrawing(true)}>
+            Withdraw it
+          </Button>
+        )}
+      </div>
+
+      {withdrawing && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <label className="block flex-1 basis-48">
+            <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+              What did the patient say?
+            </span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={!reason.trim()}
+            onClick={() => {
+              onWithdraw(reason);
+              setWithdrawing(false);
+              setReason("");
+            }}
+          >
+            Withdraw
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setWithdrawing(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {showWords && (
+        <div className="mt-3 rounded-[var(--radius-control)] bg-slate-50 p-3 dark:bg-slate-950/40">
+          <ul className="space-y-1.5">
+            {consent.statements.map((line) => (
+              <li key={line} className="text-sm text-slate-700 dark:text-slate-200">
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 border-t border-slate-200 pt-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
+            {consent.declaration}
+          </p>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Taking it.
+ *
+ * The statements are shown in full before anything can be recorded. A
+ * consent form that is collapsed behind "view details" is a consent form
+ * that was not read, and the record would then claim an understanding that
+ * did not happen.
+ */
+function TakeConsent({
+  forms,
+  form,
+  patientName,
+  onPick,
+  onCancel,
+  onDone,
+}: {
+  forms: ConsentForm[];
+  form: ConsentForm;
+  patientName: string;
+  onPick: (form: ConsentForm) => void;
+  onCancel: () => void;
+  onDone: (input: ConsentInput) => Promise<unknown>;
+}) {
+  const [givenBy, setGivenBy] = useState(patientName);
+  const [relationship, setRelationship] = useState("");
+  const [method, setMethod] = useState<ConsentMethod>("typed");
+  const [witness, setWitness] = useState("");
+  const [witnessRole, setWitnessRole] = useState("");
+  const [subject, setSubject] = useState("");
+  const [refusedReason, setRefusedReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const needsWitness = method === "thumbprint" || method === "verbal";
+
+  async function record(outcome: ConsentOutcome) {
+    setBusy(true);
+    const input: ConsentInput = {
+      form_key: form.key,
+      given_by_name: givenBy.trim(),
+      method,
+      status: outcome,
+    };
+    if (relationship.trim()) input.given_by_relationship = relationship.trim();
+    if (witness.trim()) input.witness_name = witness.trim();
+    if (witnessRole.trim()) input.witness_role = witnessRole.trim();
+    if (subject.trim()) input.subject = subject.trim();
+    if (outcome === "refused") input.refused_reason = refusedReason.trim();
+    try {
+      await onDone(input);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 border-b border-slate-200 p-4 dark:border-slate-800">
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          What is being agreed to?
+        </span>
+        <select
+          value={form.key}
+          onChange={(event) => {
+            const next = forms.find((item) => item.key === event.target.value);
+            if (next) onPick(next);
+          }}
+          className={inputClass}
+        >
+          {forms.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {/* Read in full, never collapsed. A form behind "view details" is a
+          form that was not read. */}
+      <div className="rounded-[var(--radius-control)] bg-slate-50 p-3 dark:bg-slate-950/40">
+        <p className="mb-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Read this to the patient
+        </p>
+        <ul className="space-y-1.5">
+          {form.statements.map((line) => (
+            <li key={line} className="text-sm text-slate-700 dark:text-slate-200">
+              {line}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 border-t border-slate-200 pt-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-white">
+          {form.declaration}
+        </p>
+      </div>
+
+      {form.key === "procedure" && (
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Which operation or procedure?
+          </span>
+          <input
+            type="text"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="Open reduction, left forearm"
+            className={inputClass}
+          />
+        </label>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Who is agreeing?
+          </span>
+          <input
+            type="text"
+            value={givenBy}
+            onChange={(event) => setGivenBy(event.target.value)}
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            If not the patient, who are they?
+          </span>
+          <input
+            type="text"
+            value={relationship}
+            onChange={(event) => setRelationship(event.target.value)}
+            placeholder="Mother"
+            className={inputClass}
+          />
+        </label>
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          How was it given?
+        </span>
+        <select
+          value={method}
+          onChange={(event) => setMethod(event.target.value as ConsentMethod)}
+          className={inputClass}
+        >
+          <option value="typed">Name typed by the patient</option>
+          <option value="signed">Signed on screen</option>
+          <option value="thumbprint">Thumbprint, with a witness</option>
+          <option value="verbal">Given verbally, with a witness</option>
+        </select>
+      </label>
+
+      {(needsWitness || form.witness_expected) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Witness{needsWitness ? "" : " (expected for this form)"}
+            </span>
+            <input
+              type="text"
+              value={witness}
+              onChange={(event) => setWitness(event.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Their job
+            </span>
+            <input
+              type="text"
+              value={witnessRole}
+              onChange={(event) => setWitnessRole(event.target.value)}
+              placeholder="Staff nurse"
+              className={inputClass}
+            />
+          </label>
+        </div>
+      )}
+
+      <label className="block">
+        <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          If they refuse, what did they say?
+        </span>
+        <input
+          type="text"
+          value={refusedReason}
+          onChange={(event) => setRefusedReason(event.target.value)}
+          placeholder="Wants to discuss it with his wife first."
+          className={inputClass}
+        />
+      </label>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          disabled={busy || !givenBy.trim() || (needsWitness && !witness.trim())}
+          onClick={() => void record("given")}
+        >
+          They agree
+        </Button>
+        {/* Refusal is recorded, not left blank: "asked and declined" is
+            what the next clinician needs to see. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy || !givenBy.trim() || !refusedReason.trim()}
+          onClick={() => void record("refused")}
+        >
+          They refuse
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------
+ * Documents
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Sick notes, reports and certificates.
+ *
+ * A draft shows no reference and no signature, because a screenshot of a
+ * draft that looked signed is exactly the forgery this feature exists to
+ * make harder. Once issued, the reference and the link to the printable
+ * page appear, and the wording is fixed for good.
+ */
+function DocumentsPanel({
+  documents,
+  templates,
+  canWrite,
+  canIssue,
+  onDraft,
+  onUpdate,
+  onIssue,
+  onRevoke,
+}: {
+  documents: IssuedDocument[];
+  templates: DocumentTemplate[];
+  canWrite: boolean;
+  canIssue: boolean;
+  onDraft: (templateKey: string) => Promise<unknown>;
+  onUpdate: (id: string, content: Record<string, string>) => Promise<unknown>;
+  onIssue: (id: string) => Promise<unknown>;
+  onRevoke: (id: string, reason: string) => Promise<unknown>;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const [error, setError] = useState("");
+
+  return (
+    <Card>
+      <CardHeader
+        title="Documents"
+        count={documents.length}
+        actions={
+          canWrite && !choosing ? (
+            <Button size="sm" variant="ghost" onClick={() => setChoosing(true)}>
+              + Write one
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {choosing && canWrite && (
+        <div className="space-y-2 border-b border-slate-200 p-4 dark:border-slate-800">
+          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            What are you writing?
+          </p>
+          <div className="grid gap-2">
+            {templates.map((template) => (
+              <button
+                key={template.key}
+                type="button"
+                onClick={() => {
+                  setError("");
+                  void onDraft(template.key)
+                    .then(() => setChoosing(false))
+                    .catch((exc: unknown) =>
+                      setError(
+                        exc instanceof ApiRequestError
+                          ? exc.message
+                          : "That could not be started.",
+                      ),
+                    );
+                }}
+                className="rounded-[var(--radius-control)] border border-slate-200 p-3 text-left hover:border-accent dark:border-slate-800"
+              >
+                <span className="block font-semibold text-slate-900 dark:text-white">
+                  {template.name}
+                </span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  {template.summary}
+                </span>
+              </button>
+            ))}
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => setChoosing(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
+      {error && (
+        <p className="border-b border-slate-200 px-4 pb-3 text-sm font-medium text-critical dark:border-slate-800">
+          {error}
+        </p>
+      )}
+
+      {documents.length === 0 ? (
+        <EmptyState
+          title="Nothing has been written on this visit."
+          hint={canWrite ? undefined : "Only a doctor can write a certificate."}
+        />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {documents.map((row) => (
+            <DocumentRow
+              key={row.id}
+              document={row}
+              canWrite={canWrite}
+              canIssue={canIssue}
+              onUpdate={(content) => onUpdate(row.id, content)}
+              onIssue={() => onIssue(row.id)}
+              onRevoke={(reason) => onRevoke(row.id, reason)}
+            />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function DocumentRow({
+  document,
+  canWrite,
+  canIssue,
+  onUpdate,
+  onIssue,
+  onRevoke,
+}: {
+  document: IssuedDocument;
+  canWrite: boolean;
+  canIssue: boolean;
+  onUpdate: (content: Record<string, string>) => Promise<unknown>;
+  onIssue: () => Promise<unknown>;
+  onRevoke: (reason: string) => Promise<unknown>;
+}) {
+  const fields = document.wording.fields ?? [];
+  const required = document.wording.required ?? [];
+  const [content, setContent] = useState<Record<string, string>>(document.content);
+  const [revoking, setRevoking] = useState(false);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const missing = required.filter((key) => !(content[key] ?? "").trim());
+  const editable = canWrite && !document.is_issued;
+
+  async function run(work: Promise<unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      await work;
+    } catch (exc) {
+      setError(exc instanceof ApiRequestError ? exc.message : "That could not be done.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-900 dark:text-white">{document.name}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {document.status_label}
+            {document.reference && ` · ${document.reference}`}
+            {document.issued_at && ` · ${formatDateTime(document.issued_at)}`}
+          </p>
+        </div>
+        {/* A draft says so. A screenshot of one must never read as signed. */}
+        {!document.is_issued && <Badge tone="info">Not issued yet</Badge>}
+        {document.revoked_at && <Badge tone="critical">Withdrawn</Badge>}
+      </div>
+
+      {document.revoked_reason && (
+        <p className="mt-2 text-sm text-critical">Withdrawn: {document.revoked_reason}</p>
+      )}
+
+      {editable ? (
+        <div className="mt-3 space-y-3">
+          {fields.map((field) => (
+            <label key={field.key} className="block">
+              <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {field.label}
+                {required.includes(field.key) && " *"}
+              </span>
+              <textarea
+                rows={field.key === "advice" || field.key.length > 8 ? 2 : 1}
+                value={content[field.key] ?? ""}
+                onChange={(event) =>
+                  setContent((current) => ({ ...current, [field.key]: event.target.value }))
+                }
+                className={cn(inputClass, "resize-y")}
+              />
+            </label>
+          ))}
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void run(onUpdate(content))}
+            >
+              Save the draft
+            </Button>
+            {canIssue && (
+              <Button
+                size="sm"
+                disabled={busy || missing.length > 0}
+                onClick={() => void run(onUpdate(content).then(onIssue))}
+              >
+                Sign and issue
+              </Button>
+            )}
+          </div>
+
+          {missing.length > 0 && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Still needed before it can be issued:{" "}
+              {missing
+                .map((key) => fields.find((field) => field.key === key)?.label ?? key)
+                .join(", ")}
+              .
+            </p>
+          )}
+        </div>
+      ) : (
+        <dl className="mt-3 space-y-2">
+          {fields
+            .filter((field) => (document.content[field.key] ?? "").trim())
+            .map((field) => (
+              <div key={field.key}>
+                <dt className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {field.label}
+                </dt>
+                <dd className="whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">
+                  {document.content[field.key]}
+                </dd>
+              </div>
+            ))}
+        </dl>
+      )}
+
+      {document.is_issued && (
+        <div className="mt-3 rounded-[var(--radius-control)] bg-slate-50 p-3 dark:bg-slate-950/40">
+          {document.signature.map((line) => (
+            <p key={line} className="text-sm text-slate-700 dark:text-slate-200">
+              {line}
+            </p>
+          ))}
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Anyone holding this document can check it is genuine by scanning the code printed on
+            it. The check never shows a diagnosis.
+          </p>
+        </div>
+      )}
+
+      {error && <p className="mt-2 text-sm font-medium text-critical">{error}</p>}
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {document.verify_url && (
+          <a
+            href={`${document.verify_url}print/`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-semibold text-accent hover:underline"
+          >
+            Print it
+          </a>
+        )}
+        {canIssue && document.still_valid && !revoking && (
+          <Button size="sm" variant="ghost" onClick={() => setRevoking(true)}>
+            Withdraw it
+          </Button>
+        )}
+      </div>
+
+      {revoking && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <label className="block flex-1 basis-48">
+            <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+              Why is it being withdrawn?
+            </span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              className={inputClass}
+            />
+          </label>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={!reason.trim() || busy}
+            onClick={() => {
+              void run(onRevoke(reason));
+              setRevoking(false);
+              setReason("");
+            }}
+          >
+            Withdraw
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setRevoking(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+    </li>
   );
 }

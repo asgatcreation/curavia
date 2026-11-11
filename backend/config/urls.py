@@ -35,6 +35,7 @@ api_v1 = [
     path("", include("apps.journey.api.urls")),
     path("", include("apps.clinical.api.urls")),
     path("", include("apps.orders.api.urls")),
+    path("", include("apps.documents.api.urls")),
     path("", include("apps.core.api.urls")),
 ]
 
@@ -60,6 +61,8 @@ urlpatterns = [
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
+    # Public pages reached from outside: the QR code on a printed document.
+    path("", include("apps.documents.urls")),
     # The marketing site is last so it can own the root without shadowing.
     path("", include("apps.marketing.urls")),
 ]

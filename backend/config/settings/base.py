@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     "apps.journey",
     "apps.clinical",
     "apps.orders",
+    "apps.documents",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -288,6 +289,9 @@ SPECTACULAR_SETTINGS = {
         # One Stage, used by both the move request and the journey event.
         "StageEnum": "apps.journey.models.Stage",
         "NursingNoteKindEnum": "apps.clinical.models.NursingNote.Kind",
+        "ConsentMethodEnum": "apps.documents.models.ConsentMethod",
+        "ConsentStatusEnum": "apps.documents.models.ConsentStatus",
+        "DocumentStatusEnum": "apps.documents.models.DocumentStatus",
         "OrderKindEnum": "apps.orders.models.OrderKind",
         "ReferralKindEnum": "apps.orders.models.Referral.Kind",
     },
@@ -396,6 +400,11 @@ CURAVIA = {
     # are opened outside the request that sent them, so they cannot be
     # relative and cannot be derived from a Host header a caller controls.
     "APP_URL": env("CURAVIA_APP_URL", "http://localhost:5173"),
+    # Where the public pages are served: the document verification page, which
+    # is reached by scanning a QR code printed on paper months earlier. It
+    # cannot be derived from a Host header a caller controls, because that
+    # would let somebody put their own address on a hospital's certificate.
+    "PUBLIC_URL": env("CURAVIA_PUBLIC_URL", "http://localhost:8010"),
 }
 
 # --------------------------------------------------------------------------

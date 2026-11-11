@@ -200,6 +200,7 @@ def validate_module_settings() -> None:
         "SIGNED_URL_TTL",
         "PERMISSIONS_MATRIX",
         "APP_URL",
+        "PUBLIC_URL",
     }
     if unknown:
         raise RuntimeError(f"Unknown keys in settings.CURAVIA: {sorted(unknown)}")

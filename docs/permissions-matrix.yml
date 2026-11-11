@@ -272,6 +272,48 @@ permissions:
   clinical.referral.create:
     allow: [owner, doctor, consultant]
 
+  # ----------------------------------------------- consent and paper issued
+  consent.read:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, front_desk, auditor]
+    note: >
+      Front desk is included on purpose. Whether this patient has agreed to
+      how the hospital keeps their records is a registration question, and a
+      clerk who cannot see that consent was already taken will take it again.
+
+  consent.take:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, front_desk]
+    note: >
+      Taking consent is not the same as performing the thing consented to.
+      A nurse may witness and record a transfusion consent; prescribing the
+      transfusion needs clinical.order.create.
+
+  consent.withdraw:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, front_desk]
+    note: >
+      As wide as taking it. A patient who says "I have changed my mind" says
+      it to whoever is in front of them, and a system that made them wait
+      for a doctor would record the withdrawal late or not at all.
+
+  document.read:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, front_desk, auditor]
+
+  document.write:
+    allow: [owner, doctor, consultant]
+    note: Drafting a sick note or a report is a clinical judgement.
+
+  document.issue:
+    allow: [owner, doctor, consultant]
+    note: >
+      Signing a certificate puts a clinician's name and registration number
+      on a document that leaves the building. Only the people who can be
+      held to it.
+
+  document.revoke:
+    allow: [owner, doctor, consultant]
+    note: >
+      Revoking does not delete. Somebody is holding a printed copy, so the
+      row and its token stay and the public page reports it as withdrawn.
+
   # ------------------------------------------------------- triage and nursing
   triage.vitals.record:
     allow: [owner, doctor, consultant, nurse, nurse_in_charge]

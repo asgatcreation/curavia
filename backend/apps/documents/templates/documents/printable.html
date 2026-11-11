@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<meta name="robots" content="noindex, nofollow">
+
+{% comment %}
+  Laid out for A4, in black on white, with no JavaScript.
+
+  Written so that milestone 7 can render this same file through WeasyPrint
+  without touching it: absolute units rather than viewport ones, an @page
+  rule for the margins, an inline SVG for the QR code rather than a canvas,
+  and no web fonts — a hospital printing a certificate from a laptop with no
+  network must get the same page as the server does.
+
+  Deliberately plain. A sick note that looks like a brochure is a sick note
+  an employer suspects.
+{% endcomment %}
+
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+
+  :root {
+    --ink: #111827;
+    --muted: #4b5563;
+    --line: #d1d5db;
+    --accent: #0f766e;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { background: #e5e7eb; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font: 400 11pt/1.5 Georgia, "Times New Roman", ui-serif, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 8mm auto;
+    padding: 18mm 16mm;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / .08), 0 10px 30px -12px rgb(0 0 0 / .25);
+  }
+
+  /* ---------------------------------------------------------------- head */
+  .letterhead {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12mm; padding-bottom: 5mm; border-bottom: 1.5pt solid var(--accent);
+  }
+  .hospital { font-size: 16pt; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 1mm; }
+  .address { margin: 0; color: var(--muted); font-size: 9pt; line-height: 1.45; }
+
+  .qr { width: 26mm; flex: 0 0 26mm; text-align: center; }
+  .qr svg { width: 26mm; height: 26mm; display: block; }
+  .qr .cap {
+    margin: 1mm 0 0; font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+    font-size: 6.5pt; line-height: 1.3; color: var(--muted);
+  }
+
+  /* --------------------------------------------------------------- title */
+  h1 {
+    margin: 9mm 0 1mm; font-size: 15pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; text-align: center;
+  }
+  .reference {
+    margin: 0 0 7mm; text-align: center; color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 9.5pt; letter-spacing: .08em;
+  }
+
+  /* -------------------------------------------------------------- person */
+  .person { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+  .person th, .person td {
+    text-align: left; vertical-align: top;
+    padding: 1.6mm 0; border-bottom: .5pt solid var(--line);
+    font-size: 10.5pt;
+  }
+  .person th { width: 34mm; font-weight: 400; color: var(--muted); }
+  .person td { font-weight: 700; }
+
+  /* ---------------------------------------------------------------- body */
+  .field { margin-bottom: 4.5mm; }
+  .field .label {
+    margin: 0 0 .8mm; color: var(--muted); font-size: 8.5pt;
+    font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+    text-transform: uppercase; letter-spacing: .07em;
+  }
+  .field .value { margin: 0; white-space: pre-wrap; }
+
+  .fixed { margin: 6mm 0; padding-left: 4mm; border-left: 2pt solid var(--line); }
+  .fixed p { margin: 0 0 2.5mm; color: var(--muted); font-size: 10pt; }
+  .fixed p:last-child { margin-bottom: 0; }
+
+  /* ----------------------------------------------------------- signature */
+  .signature { margin-top: 12mm; page-break-inside: avoid; }
+  .rule { width: 70mm; border-top: .75pt solid var(--ink); margin-bottom: 1.5mm; }
+  .signature p { margin: 0; font-size: 10pt; line-height: 1.45; }
+  .signature p:first-of-type { font-weight: 700; }
+
+  footer {
+    margin-top: 10mm; padding-top: 3mm; border-top: .5pt solid var(--line);
+    color: var(--muted); font-size: 8pt; line-height: 1.5;
+    font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+  }
+  footer code { font-size: 8pt; letter-spacing: .04em; }
+
+  .revoked {
+    margin: 0 0 6mm; padding: 3mm 4mm;
+    border: 1pt solid #be123c; color: #be123c;
+    font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+    font-size: 10pt; font-weight: 700;
+  }
+
+  /* --------------------------------------------------------------- print */
+  .toolbar {
+    max-width: 210mm; margin: 6mm auto 0; text-align: right;
+    font-family: ui-sans-serif, system-ui, Arial, sans-serif;
+  }
+  .toolbar button {
+    font: inherit; font-size: 10pt; font-weight: 600;
+    padding: .5rem 1rem; border-radius: .5rem;
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    cursor: pointer;
+  }
+  .toolbar .hint { display: block; margin-top: .4rem; font-size: 9pt; color: #4b5563; }
+
+  @media print {
+    html, body { background: #fff; }
+    .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+    .toolbar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Print this document</button>
+  <span class="hint">Choose &ldquo;Save as PDF&rdquo; in the print dialog to keep a copy.</span>
+</div>
+
+<div class="sheet">
+
+  <header class="letterhead">
+    <div>
+      <p class="hospital">{{ letterhead.hospital }}</p>
+      <p class="address">
+        {% if letterhead.branch %}{{ letterhead.branch }}<br>{% endif %}
+        {% if letterhead.address %}{{ letterhead.address|linebreaksbr }}<br>{% endif %}
+        {% if letterhead.lga %}{{ letterhead.lga }}{% if letterhead.state %}, {% endif %}{% endif %}{{ letterhead.state }}
+        {% if letterhead.phone %}<br>{{ letterhead.phone }}{% endif %}
+        {% if letterhead.email %}<br>{{ letterhead.email }}{% endif %}
+      </p>
+    </div>
+    <div class="qr">
+      {{ qr|safe }}
+      <p class="cap">Scan to check this document is genuine</p>
+    </div>
+  </header>
+
+  <h1>{{ document.name }}</h1>
+  <p class="reference">{{ document.reference }}</p>
+
+  {% if document.revoked_at %}
+    <p class="revoked">This document has been withdrawn by the hospital and must not be relied on.</p>
+  {% endif %}
+
+  <table class="person">
+    <tr><th>Name</th><td>{{ patient.full_name }}</td></tr>
+    <tr><th>Hospital number</th><td>{{ patient.mrn }}</td></tr>
+    {% if patient.date_of_birth %}
+      <tr><th>Date of birth</th><td>{{ patient.date_of_birth|date:"j F Y" }}</td></tr>
+    {% endif %}
+    {% comment %}
+      A row the hospital does not know is left off rather than printed as
+      "Unknown". A certificate that admits a gap in its own letterhead is a
+      certificate an employer looks at twice.
+
+      {% comment %} and not {# ... #}: Django's hash comment is single-line
+      only, so a three-line one is not a comment at all and prints onto the
+      certificate. It did, and the test below caught it.
+    {% endcomment %}
+    {% if patient.sex and patient.sex != "U" %}
+      <tr><th>Sex</th><td>{{ patient.get_sex_display }}</td></tr>
+    {% endif %}
+  </table>
+
+  {% for field in fields %}
+    <div class="field">
+      <p class="label">{{ field.label }}</p>
+      <p class="value">{{ field.value }}</p>
+    </div>
+  {% endfor %}
+
+  {% if fixed_text %}
+    <div class="fixed">
+      {% for line in fixed_text %}<p>{{ line }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="signature">
+    <div class="rule"></div>
+    {% for line in signature %}<p>{{ line }}</p>{% endfor %}
+  </div>
+
+  <footer>
+    Check this document at <code>{{ verify_url }}</code>, or scan the code above.
+    The page will say who issued it and whether it still stands. It does not
+    show anything about the patient's health.
+  </footer>
+
+</div>
+</body>
+</html>

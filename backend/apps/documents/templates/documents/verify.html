@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title|default:"Check a document" }} — Curavia</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+
+{% comment %}
+  One page, no JavaScript, one stylesheet inline.
+
+  This is opened by somebody who has just pointed a phone camera at a piece
+  of paper. They are standing up, they are probably on mobile data, and they
+  have never heard of Curavia. So: a single request, a verdict in the first
+  line, and nothing to tap before they get it.
+
+  The colours mirror frontend/shared/src/ui/tokens.css, same as the
+  marketing site's base template, so the two do not drift.
+{% endcomment %}
+
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #0f766e;
+    --good: #047857;
+    --good-soft: #ecfdf5;
+    --bad: #be123c;
+    --bad-soft: #fff1f2;
+    --radius: 0.875rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #020617;
+      --surface: #0f172a;
+      --border: #1e293b;
+      --text: #e8eef7;
+      --muted: #94a3b8;
+      --accent: #2dd4bf;
+      --good: #34d399;
+      --good-soft: #052e22;
+      --bad: #fb7185;
+      --bad-soft: #3f1020;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 400 1rem/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 32rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+  .brand {
+    display: flex; align-items: center; gap: .5rem;
+    font-weight: 700; color: var(--accent); margin-bottom: 1.25rem;
+  }
+  .mark {
+    width: 1.75rem; height: 1.75rem; border-radius: .5rem;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-size: .9rem; font-weight: 800;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .verdict { padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid var(--border); }
+  .verdict.good { background: var(--good-soft); }
+  .verdict.bad  { background: var(--bad-soft); }
+  .verdict h1 {
+    margin: 0 0 .25rem; font-size: 1.375rem; line-height: 1.2; letter-spacing: -0.01em;
+  }
+  .verdict.good h1 { color: var(--good); }
+  .verdict.bad  h1 { color: var(--bad); }
+  .verdict p { margin: 0; color: var(--muted); font-size: .9375rem; }
+
+  dl { margin: 0; padding: .5rem 1.25rem 1.25rem; }
+  .row {
+    display: flex; justify-content: space-between; gap: 1rem;
+    padding: .625rem 0; border-bottom: 1px solid var(--border);
+  }
+  .row:last-child { border-bottom: 0; }
+  dt { color: var(--muted); font-size: .875rem; }
+  dd { margin: 0; font-weight: 600; text-align: right; }
+  dd.ref { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .04em; }
+
+  .footnote {
+    margin-top: 1.25rem; color: var(--muted); font-size: .8125rem; line-height: 1.6;
+  }
+  .footnote strong { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand"><span class="mark">C</span> Curavia</div>
+
+  {% if found %}
+    {% if found.valid %}
+      <div class="card">
+        <div class="verdict good">
+          <h1>This document is genuine.</h1>
+          <p>It was issued by the hospital named below and has not been withdrawn.</p>
+        </div>
+        <dl>
+          <div class="row"><dt>Document</dt><dd>{{ found.kind }}</dd></div>
+          <div class="row"><dt>Reference</dt><dd class="ref">{{ found.reference }}</dd></div>
+          <div class="row"><dt>Issued to</dt><dd>{{ found.patient }}</dd></div>
+          <div class="row"><dt>Issued on</dt><dd>{{ found.issued_on }}</dd></div>
+          <div class="row"><dt>Hospital</dt><dd>{{ found.hospital }}{% if found.branch %}, {{ found.branch }}{% endif %}</dd></div>
+          {% if found.signed_by %}
+            <div class="row"><dt>Signed by</dt><dd>{{ found.signed_by }}</dd></div>
+          {% endif %}
+        </dl>
+      </div>
+    {% else %}
+      <div class="card">
+        <div class="verdict bad">
+          {% if found.revoked %}
+            <h1>This document has been withdrawn.</h1>
+            <p>The hospital issued it on {{ found.issued_on }} and withdrew it on {{ found.revoked_on }}. Do not rely on it.</p>
+          {% else %}
+            <h1>This document was never issued.</h1>
+            <p>A draft with this code exists but was never signed or handed out. Do not rely on it.</p>
+          {% endif %}
+        </div>
+        <dl>
+          <div class="row"><dt>Document</dt><dd>{{ found.kind }}</dd></div>
+          {% if found.reference %}
+            <div class="row"><dt>Reference</dt><dd class="ref">{{ found.reference }}</dd></div>
+          {% endif %}
+          <div class="row"><dt>Hospital</dt><dd>{{ found.hospital }}{% if found.branch %}, {{ found.branch }}{% endif %}</dd></div>
+        </dl>
+      </div>
+    {% endif %}
+
+    <p class="footnote">
+      {% if found.description %}{{ found.description }}{% endif %}
+      <strong>Nothing about this patient's health is shown here.</strong>
+      A diagnosis belongs to the patient. If you need more than confirmation
+      that this document is real, ask them, or ask the hospital with their
+      permission.
+    </p>
+  {% else %}
+    <div class="card">
+      <div class="verdict bad">
+        <h1>No document with that code.</h1>
+        <p>Nothing matching it has been issued by any hospital using Curavia.</p>
+      </div>
+      <dl>
+        <div class="row">
+          <dt>What to do</dt>
+          <dd style="font-weight:400;text-align:left">Check the code on the paper and try again, or ring the hospital printed on it.</dd>
+        </div>
+      </dl>
+    </div>
+    <p class="footnote">
+      A code that does not resolve does not by itself prove a forgery — a
+      document from a hospital that does not use Curavia will not be found
+      here either.
+    </p>
+  {% endif %}
+
+</div>
+</body>
+</html>

@@ -91,3 +91,14 @@ backend/tests/test_diagnoses.py
 
 # Reads the audit log back, which is written outside any one hospital's scope.
 backend/tests/test_orders.py
+
+# Verifying a document: the person scanning the QR code is an employer or a
+# school registrar with no account and no hospital, so the token has to be
+# looked up across every tenant before one can be put in scope.
+backend/apps/documents/service.py
+
+# Serves the public verification and printable pages, reached by token alone.
+backend/apps/documents/views.py
+
+# Reads the audit log back, which is written outside any one hospital's scope.
+backend/tests/test_documents.py
