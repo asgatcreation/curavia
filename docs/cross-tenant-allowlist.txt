@@ -88,3 +88,6 @@ backend/tests/test_clinical_notes.py
 
 # Reads the audit log back, which is written outside any one hospital's scope.
 backend/tests/test_diagnoses.py
+
+# Reads the audit log back, which is written outside any one hospital's scope.
+backend/tests/test_orders.py

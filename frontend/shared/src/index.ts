@@ -6,6 +6,7 @@ export * from "./api/importing";
 export * from "./api/journey";
 export * from "./api/live";
 export * from "./api/notes";
+export * from "./api/orders";
 export * from "./api/patients";
 export * from "./api/reminders";
 export * from "./api/reporting";

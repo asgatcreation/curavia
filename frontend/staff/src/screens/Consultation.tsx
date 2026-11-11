@@ -43,6 +43,7 @@ import {
   cn,
   formatDate,
   formatDateTime,
+  formatNaira,
   inputClass,
   news2Label,
   news2Tone,
@@ -52,14 +53,21 @@ import type {
   ClinicalNote,
   CodeResult,
   Diagnosis,
+  Order,
+  OrderInput,
+  OrderKind,
+  OrderPriority,
   Problem,
+  Referral,
+  ReferralKind,
+  ServiceResult,
   NoteContent,
   NoteTemplate,
   Observation,
   TemplateCatalogue,
   TemplateSection,
 } from "@curavia/shared";
-import { ApiRequestError, ClinicalApi, DiagnosesApi, NotesApi } from "@curavia/shared";
+import { ApiRequestError, ClinicalApi, DiagnosesApi, NotesApi, OrdersApi } from "@curavia/shared";
 
 import { api } from "../api";
 import { useAuth } from "../auth/useAuth";
@@ -67,6 +75,7 @@ import { IconWarning } from "../icons";
 
 const notesApi = new NotesApi(api);
 const coding = new DiagnosesApi(api);
+const orderApi = new OrdersApi(api);
 const clinical = new ClinicalApi(api);
 const journey = new JourneyApi(api);
 
@@ -113,6 +122,8 @@ export function Consultation() {
       <ConsultationRoom
         row={open}
         canAmend={me?.permissions.includes("clinical.note.amend") ?? false}
+        canOrder={me?.permissions.includes("clinical.order.create") ?? false}
+        canRefer={me?.permissions.includes("clinical.referral.create") ?? false}
         canWrite={me?.permissions.includes("clinical.note.write") ?? false}
         canSign={me?.permissions.includes("clinical.note.sign") ?? false}
         onClose={() => {
@@ -181,12 +192,16 @@ function ConsultationRoom({
   canWrite,
   canSign,
   canAmend,
+  canOrder,
+  canRefer,
   onClose,
 }: {
   row: BoardRow;
   canWrite: boolean;
   canSign: boolean;
   canAmend: boolean;
+  canOrder: boolean;
+  canRefer: boolean;
   onClose: () => void;
 }) {
   const [catalogue, setCatalogue] = useState<TemplateCatalogue | null>(null);
@@ -195,6 +210,9 @@ function ConsultationRoom({
   const [observations, setObservations] = useState<Observation[]>([]);
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [basketTotal, setBasketTotal] = useState(0);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
   const [error, setError] = useState("");
 
   const reload = useCallback(() => {
@@ -213,6 +231,16 @@ function ConsultationRoom({
   }, [row.id, row.patient_id]);
 
   useEffect(reloadCoding, [reloadCoding]);
+
+  const reloadOrders = useCallback(() => {
+    void orderApi.forEncounter(row.id).then((result) => {
+      setOrders(result.orders);
+      setBasketTotal(result.basket_total_kobo);
+    });
+    void orderApi.referrals(row.id).then((result) => setReferrals(result.referrals));
+  }, [row.id]);
+
+  useEffect(reloadOrders, [reloadOrders]);
 
   useEffect(() => {
     void notesApi.templates().then(setCatalogue);
@@ -336,14 +364,20 @@ function ConsultationRoom({
             onRemove={(id) => coding.remove(id).then(reloadCoding)}
           />
 
-          <Card>
-            <CardHeader title="Orders" />
-            <div className="p-4 text-sm text-slate-600 dark:text-slate-300">
-              Prescriptions, laboratory and radiology orders are signed from here. They arrive
-              with the next milestone, together with the allergy and interaction checks that have
-              to run before anything can be sent to the pharmacy.
-            </div>
-          </Card>
+          <OrdersPanel
+            orders={orders}
+            basketTotal={basketTotal}
+            canOrder={canOrder}
+            onAdd={(input) => orderApi.add(row.id, input).then(reloadOrders)}
+            onSign={(reason) => orderApi.sign(row.id, reason).then(reloadOrders)}
+            onCancel={(id, reason) => orderApi.cancel(id, reason).then(reloadOrders)}
+          />
+
+          <ReferralsPanel
+            referrals={referrals}
+            canRefer={canRefer}
+            onRefer={(input) => orderApi.refer(row.id, input).then(reloadOrders)}
+          />
         </div>
 
         {/* ------------------------------------------------------------- *
@@ -1500,6 +1534,614 @@ function ProblemList({
                   </Button>
                 </div>
               )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------------
+ * Orders
+ * ---------------------------------------------------------------------- */
+
+/** The kinds a doctor picks between, in the order they are usually needed. */
+const ORDER_KINDS: { value: OrderKind; label: string }[] = [
+  { value: "laboratory", label: "Laboratory" },
+  { value: "radiology", label: "Imaging" },
+  { value: "medication", label: "Medicine" },
+  { value: "procedure", label: "Procedure" },
+  { value: "nursing", label: "Nursing" },
+];
+
+/**
+ * The basket of orders.
+ *
+ * Everything is drafted and signed together, because a doctor thinks in a
+ * plan — bloods, an antibiotic and something for the fever — and signing
+ * each separately is three times the clicks for one intention.
+ *
+ * The allergy warning is the point of the screen. It is attached to the
+ * order line from the moment the drug is added, with the reason written
+ * out, and the sign button says plainly what is blocking it. A warning
+ * behind a dialog is a warning that gets dismissed by reflex.
+ */
+function OrdersPanel({
+  orders,
+  basketTotal,
+  canOrder,
+  onAdd,
+  onSign,
+  onCancel,
+}: {
+  orders: Order[];
+  basketTotal: number;
+  canOrder: boolean;
+  onAdd: (input: OrderInput) => Promise<unknown>;
+  onSign: (overrideReason: string) => Promise<unknown>;
+  onCancel: (id: string, reason: string) => Promise<unknown>;
+}) {
+  const [kind, setKind] = useState<OrderKind>("laboratory");
+  const [name, setName] = useState("");
+  const [dose, setDose] = useState("");
+  const [frequency, setFrequency] = useState("");
+  const [duration, setDuration] = useState("");
+  const [priority, setPriority] = useState<OrderPriority>("routine");
+  const [results, setResults] = useState<ServiceResult[]>([]);
+  const [override, setOverride] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const text = name.trim();
+    const timer = window.setTimeout(() => {
+      if (text.length < 2) {
+        setResults([]);
+        return;
+      }
+      void orderApi
+        .services(text, kind)
+        .then((result) => setResults(result.results))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [name, kind]);
+
+  const basket = orders.filter((order) => order.status === "draft");
+  const sent = orders.filter((order) => order.status !== "draft");
+  const blocking = basket.filter((order) =>
+    order.warnings.some((warning) => warning.tone === "critical"),
+  );
+
+  function reset() {
+    setName("");
+    setDose("");
+    setFrequency("");
+    setDuration("");
+    setResults([]);
+  }
+
+  async function run(work: Promise<unknown>) {
+    setBusy(true);
+    setError("");
+    try {
+      await work;
+      reset();
+    } catch (exc) {
+      setError(exc instanceof ApiRequestError ? exc.message : "That could not be done.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function add(serviceId?: string) {
+    const input: OrderInput = { kind, priority };
+    if (serviceId) input.service_id = serviceId;
+    else input.name = name.trim();
+    if (kind === "medication") {
+      input.dose = dose.trim();
+      input.frequency = frequency.trim();
+      input.duration = duration.trim();
+      if (serviceId) input.name = name.trim();
+    }
+    void run(onAdd(input));
+  }
+
+  return (
+    <Card>
+      {/* What this card is showing, as everywhere else on the screen. The
+          basket is counted on the sign button, where it is the thing being
+          acted on; here it would read "Orders 0" over a list of orders. */}
+      <CardHeader title="Orders" count={orders.length} />
+
+      {canOrder && (
+        <div className="space-y-3 border-b border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex flex-wrap gap-1.5">
+            {ORDER_KINDS.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={option.value === kind ? "secondary" : "ghost"}
+                onClick={() => {
+                  setKind(option.value);
+                  setResults([]);
+                }}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400">
+              What are you ordering?
+            </span>
+            <input
+              type="search"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={
+                kind === "medication"
+                  ? "Artemether-lumefantrine, paracetamol…"
+                  : "Full blood count, chest X-ray…"
+              }
+              className={inputClass}
+            />
+          </label>
+
+          {results.length > 0 && (
+            <ul className="divide-y divide-slate-200 rounded-[var(--radius-control)] border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+              {results.map((result) => (
+                <li key={result.id} className="flex flex-wrap items-center gap-2 p-2.5">
+                  <div className="min-w-0 flex-1 basis-40">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {result.name}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {result.code} ·{" "}
+                      {result.price_kobo === null
+                        ? "no price set"
+                        : formatNaira(result.price_kobo)}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={() => add(result.id)}>
+                    Add
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {kind === "medication" && (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Dose</span>
+                <input
+                  type="text"
+                  value={dose}
+                  onChange={(event) => setDose(event.target.value)}
+                  placeholder="500 mg"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                  How often
+                </span>
+                <input
+                  type="text"
+                  value={frequency}
+                  onChange={(event) => setFrequency(event.target.value)}
+                  placeholder="Three times a day"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                  For how long
+                </span>
+                <input
+                  type="text"
+                  value={duration}
+                  onChange={(event) => setDuration(event.target.value)}
+                  placeholder="5 days"
+                  className={inputClass}
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={priority}
+              onChange={(event) => setPriority(event.target.value as OrderPriority)}
+              className={cn(inputClass, "w-auto")}
+              aria-label="How urgent is this order?"
+            >
+              <option value="routine">Routine</option>
+              <option value="urgent">Urgent</option>
+              <option value="stat">Immediately (stat)</option>
+            </select>
+            <Button
+              size="md"
+              variant="secondary"
+              disabled={busy || name.trim().length < 2}
+              onClick={() => add()}
+            >
+              Add to the basket
+            </Button>
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="rounded-[var(--radius-control)] bg-critical-soft p-2.5 text-sm font-medium text-critical-ink dark:bg-critical/15 dark:text-critical"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {basket.length === 0 && sent.length === 0 ? (
+        <EmptyState
+          title="Nothing has been ordered on this visit."
+          hint={canOrder ? undefined : "Only a doctor can order tests and medicines."}
+        />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {[...basket, ...sent].map((order) => (
+            <OrderRow
+              key={order.id}
+              order={order}
+              canOrder={canOrder}
+              onCancel={(reason) => run(onCancel(order.id, reason))}
+            />
+          ))}
+        </ul>
+      )}
+
+      {basket.length > 0 && canOrder && (
+        <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+          <dl className="flex flex-wrap justify-between gap-2 text-sm">
+            <dt className="text-slate-600 dark:text-slate-300">Estimated cost</dt>
+            <dd className="numeric font-bold text-slate-900 dark:text-white">
+              {formatNaira(basketTotal)}
+            </dd>
+          </dl>
+
+          {blocking.length > 0 && (
+            <>
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-[var(--radius-control)] bg-critical-soft p-3 text-sm font-medium text-critical-ink dark:bg-critical/15 dark:text-critical"
+              >
+                <IconWarning className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {blocking.length === 1
+                    ? `${blocking[0]?.name} conflicts with this patient's record.`
+                    : `${blocking.length} orders conflict with this patient's record.`}{" "}
+                  Remove it, change the medicine, or write down why you are going ahead.
+                </span>
+              </p>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400">
+                  Why are you going ahead?
+                </span>
+                <input
+                  type="text"
+                  value={override}
+                  onChange={(event) => setOverride(event.target.value)}
+                  placeholder="Childhood rash only; discussed with the patient."
+                  className={inputClass}
+                />
+              </label>
+            </>
+          )}
+
+          <Button
+            size="lg"
+            variant={blocking.length > 0 ? "danger" : "primary"}
+            disabled={busy || (blocking.length > 0 && override.trim().length < 5)}
+            onClick={() => void run(onSign(override))}
+          >
+            {blocking.length > 0
+              ? "Sign anyway, with the reason above"
+              : `Sign and send ${basket.length} order${basket.length === 1 ? "" : "s"}`}
+          </Button>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Signing sends the prescription to the pharmacy queue and the laboratory orders to the
+            bench, and the charges follow. Everything here is recorded under your name.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function OrderRow({
+  order,
+  canOrder,
+  onCancel,
+}: {
+  order: Order;
+  canOrder: boolean;
+  onCancel: (reason: string) => void;
+}) {
+  const [stopping, setStopping] = useState(false);
+  const [reason, setReason] = useState("");
+  const critical = order.warnings.some((warning) => warning.tone === "critical");
+  const stoppable = order.status === "draft" || order.status === "ordered";
+
+  return (
+    <li className={cn("p-4", critical && "bg-critical-soft/60 dark:bg-critical/10")}>
+      <div className="flex flex-wrap items-start gap-2">
+        <Badge tone="neutral">{order.kind_label}</Badge>
+        <div className="min-w-0 flex-1 basis-48">
+          <p className="font-semibold text-slate-900 dark:text-white">{order.summary}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {order.status_label}
+            {order.priority !== "routine" && ` · ${order.priority_label}`}
+            {order.ordered_by_name && ` · ${order.ordered_by_name}`}
+            {order.estimate_kobo !== null && ` · ${formatNaira(order.estimate_kobo)}`}
+            {order.estimate_note && ` · ${order.estimate_note}`}
+          </p>
+          {order.cancel_reason && (
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+              Stopped: {order.cancel_reason}
+            </p>
+          )}
+          {order.override_reason && (
+            <p className="mt-1 text-xs text-warning-ink dark:text-warning">
+              Signed despite the warning: {order.override_reason}
+            </p>
+          )}
+        </div>
+        {order.status === "draft" && <Badge tone="info">Not sent yet</Badge>}
+        {order.status === "cancelled" && <Badge tone="neutral">Stopped</Badge>}
+      </div>
+
+      {order.warnings.map((warning) => (
+        <p
+          key={warning.message}
+          className={cn(
+            "mt-2 flex items-start gap-2 rounded-[var(--radius-control)] p-2.5 text-sm font-medium",
+            warning.tone === "critical"
+              ? "bg-critical text-white"
+              : "bg-warning-soft text-warning-ink dark:bg-warning/15 dark:text-warning",
+          )}
+        >
+          <IconWarning className="mt-0.5 size-4 shrink-0" />
+          {warning.message}
+        </p>
+      ))}
+
+      {canOrder && stoppable && (
+        <div className="mt-2">
+          {stopping ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block flex-1 basis-48">
+                <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                  Why is it being stopped?
+                </span>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={!reason.trim()}
+                onClick={() => {
+                  onCancel(reason);
+                  setStopping(false);
+                  setReason("");
+                }}
+              >
+                Stop it
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setStopping(false)}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            // A draft has not been sent anywhere, so taking it off is just
+            // changing your mind and comes off in one click. Asking why
+            // would only teach people to type a full stop, and the question
+            // then means nothing on the orders that have really gone out.
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                if (order.status === "draft") {
+                  onCancel("");
+                } else {
+                  setStopping(true);
+                }
+              }}
+            >
+              {order.status === "draft" ? "Take it off" : "Stop this order"}
+            </Button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/* ------------------------------------------------------------------------
+ * Referrals
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Sending the patient to somebody else.
+ *
+ * Sent immediately rather than saved as a draft: a referral the patient
+ * leaves without is a referral that did not happen, and leaving the
+ * building with them is the one thing it has to do.
+ */
+function ReferralsPanel({
+  referrals,
+  canRefer,
+  onRefer,
+}: {
+  referrals: Referral[];
+  canRefer: boolean;
+  onRefer: (input: {
+    kind: ReferralKind;
+    reason: string;
+    to_facility?: string;
+    speciality?: string;
+    urgency?: Referral["urgency"];
+  }) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [facility, setFacility] = useState("");
+  const [speciality, setSpeciality] = useState("");
+  const [reason, setReason] = useState("");
+  const [urgency, setUrgency] = useState<Referral["urgency"]>("routine");
+  const [error, setError] = useState("");
+
+  async function send() {
+    setError("");
+    try {
+      await onRefer({
+        kind: "external",
+        reason,
+        to_facility: facility,
+        speciality,
+        urgency,
+      });
+      setOpen(false);
+      setFacility("");
+      setSpeciality("");
+      setReason("");
+    } catch (exc) {
+      setError(exc instanceof ApiRequestError ? exc.message : "The referral could not be sent.");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="Referrals"
+        count={referrals.length}
+        actions={
+          canRefer ? (
+            <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>
+              {open ? "Cancel" : "+ Refer"}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {open && (
+        <div className="space-y-3 border-b border-slate-200 p-4 dark:border-slate-800">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                Which hospital or clinic?
+              </span>
+              <input
+                type="text"
+                value={facility}
+                onChange={(event) => setFacility(event.target.value)}
+                placeholder="Lagos University Teaching Hospital"
+                className={inputClass}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+                Speciality
+              </span>
+              <input
+                type="text"
+                value={speciality}
+                onChange={(event) => setSpeciality(event.target.value)}
+                placeholder="Cardiology"
+                className={inputClass}
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
+              What are you asking them to do?
+            </span>
+            <input
+              type="text"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Murmur, for an echocardiogram."
+              className={inputClass}
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={urgency}
+              onChange={(event) => setUrgency(event.target.value as Referral["urgency"])}
+              className={cn(inputClass, "w-auto")}
+              aria-label="How urgent is this referral?"
+            >
+              <option value="routine">Routine</option>
+              <option value="soon">Soon</option>
+              <option value="urgent">Urgent</option>
+              <option value="emergency">Emergency</option>
+            </select>
+            <Button
+              size="md"
+              variant="primary"
+              disabled={!reason.trim() || !facility.trim()}
+              onClick={() => void send()}
+            >
+              Send the referral
+            </Button>
+          </div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-[var(--radius-control)] bg-critical-soft p-2.5 text-sm font-medium text-critical-ink dark:bg-critical/15 dark:text-critical"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {referrals.length === 0 ? (
+        <EmptyState title="Nobody has been referred on this visit." />
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+          {referrals.map((referral) => (
+            <li key={referral.id} className="p-4">
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {referral.destination}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {referral.kind_label} · {referral.status_label}
+                    {referral.speciality && ` · ${referral.speciality}`}
+                    {referral.referred_at && ` · ${formatDateTime(referral.referred_at)}`}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                    {referral.reason}
+                  </p>
+                  {referral.response_note && (
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                      {referral.response_note}
+                    </p>
+                  )}
+                </div>
+                {referral.urgency !== "routine" && (
+                  <Badge tone={referral.urgency === "emergency" ? "critical" : "warning"}>
+                    {referral.urgency_label}
+                  </Badge>
+                )}
+              </div>
             </li>
           ))}
         </ul>
