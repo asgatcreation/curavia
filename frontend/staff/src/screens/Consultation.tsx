@@ -1796,7 +1796,9 @@ function OrdersPanel({
               key={order.id}
               order={order}
               canOrder={canOrder}
-              onCancel={(reason) => run(onCancel(order.id, reason))}
+              onCancel={(reason) => {
+                void run(onCancel(order.id, reason));
+              }}
             />
           ))}
         </ul>
