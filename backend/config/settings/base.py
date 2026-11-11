@@ -16,7 +16,27 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 REPO_ROOT = BASE_DIR.parent
 
-load_dotenv(REPO_ROOT / ".env")
+#: True while the suite is running, decided before anything is read.
+TESTING = os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith(".test")
+
+if TESTING:
+    # A developer's .env holds real keys — a live Redis, a real email
+    # provider, a hospital's database. Loading it here silently changes what
+    # the suite is testing: a test asserting that email is switched off
+    # starts failing the day somebody configures Brevo, and a test touching
+    # Celery starts talking to a production Redis. The tests have to describe
+    # the code, not the laptop they run on.
+    #
+    # Only the local database connection is taken, because the suite has to
+    # reach a real PostgreSQL and the port differs between machines. CI sets
+    # these as ordinary environment variables, so it is unaffected either way.
+    from dotenv import dotenv_values
+
+    for _key, _value in dotenv_values(REPO_ROOT / ".env").items():
+        if _key.startswith("POSTGRES_") and _value and _key not in os.environ:
+            os.environ[_key] = _value
+else:
+    load_dotenv(REPO_ROOT / ".env")
 
 
 def env(key: str, default: str | None = None) -> str:
@@ -85,6 +105,7 @@ INSTALLED_APPS = [
     "apps.scheduling",
     "apps.journey",
     "apps.clinical",
+    "apps.orders",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -267,6 +288,8 @@ SPECTACULAR_SETTINGS = {
         # One Stage, used by both the move request and the journey event.
         "StageEnum": "apps.journey.models.Stage",
         "NursingNoteKindEnum": "apps.clinical.models.NursingNote.Kind",
+        "OrderKindEnum": "apps.orders.models.OrderKind",
+        "ReferralKindEnum": "apps.orders.models.Referral.Kind",
     },
 }
 

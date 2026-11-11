@@ -5,8 +5,29 @@ Deliberately strict: the permission and tenant-isolation suites must run
 against the same guards production uses.
 """
 
+import os
+
 from .base import *
-from .base import CURAVIA, MIDDLEWARE, REST_FRAMEWORK
+from .base import CURAVIA, DATABASES, MIDDLEWARE, REST_FRAMEWORK, env
+
+# The suite CREATES AND DROPS databases. `DATABASE_URL` is how a deployment
+# points Curavia at Neon, and a developer with that variable in their .env
+# would have pytest do all of that on the hospital's real server. So the
+# tests always use the local POSTGRES_* settings, which is also what CI
+# provides.
+if os.environ.get("DATABASE_URL"):
+    DATABASES = {
+        "default": {
+            **DATABASES["default"],
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("POSTGRES_DB", "curavia"),
+            "USER": env("POSTGRES_USER", "curavia"),
+            "PASSWORD": env("POSTGRES_PASSWORD", "curavia"),
+            "HOST": env("POSTGRES_HOST", "localhost"),
+            "PORT": env("POSTGRES_PORT", "5432"),
+            "OPTIONS": {},
+        }
+    }
 
 DEBUG = False
 ALLOWED_HOSTS = ["testserver", "localhost"]
