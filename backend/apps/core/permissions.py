@@ -95,6 +95,11 @@ PERMISSIONS: tuple[Permission, ...] = (
         sensitive=True,
     ),
     _p("document.revoke", "Withdraw a certificate already issued", "clinical", sensitive=True),
+    # -- the ward's own list ------------------------------------------------
+    _p("nursing.task.view", "See the ward's task list", "clinical"),
+    _p("nursing.task.manage", "Add, complete and close nursing tasks", "clinical"),
+    _p("nursing.handover.write", "Write and hand over a shift report", "clinical"),
+    _p("nursing.handover.read", "Read shift handovers", "clinical"),
     # -- appointments and queues --------------------------------------------
     _p("appointment.view", "See the appointment diary", "scheduling"),
     _p("appointment.book", "Book and move appointments", "scheduling"),

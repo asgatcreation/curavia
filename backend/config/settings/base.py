@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     "apps.clinical",
     "apps.orders",
     "apps.documents",
+    "apps.nursing",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -292,6 +293,12 @@ SPECTACULAR_SETTINGS = {
         "ConsentMethodEnum": "apps.documents.models.ConsentMethod",
         "ConsentStatusEnum": "apps.documents.models.ConsentStatus",
         "DocumentStatusEnum": "apps.documents.models.DocumentStatus",
+        # The ward list exposes Department.kind, which collides with every
+        # other "kind" on the API.
+        "DepartmentKindEnum": "apps.core.models.Department.Kind",
+        "TaskKindEnum": "apps.nursing.models.TaskKind",
+        "TaskStatusEnum": "apps.nursing.models.TaskStatus",
+        "HandoverStatusEnum": "apps.nursing.models.HandoverStatus",
         "OrderKindEnum": "apps.orders.models.OrderKind",
         "ReferralKindEnum": "apps.orders.models.Referral.Kind",
     },

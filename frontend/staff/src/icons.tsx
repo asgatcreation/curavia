@@ -134,6 +134,16 @@ export function IconWarning(props: IconProps) {
   );
 }
 
+export function IconClipboard(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 3.5h6a1 1 0 0 1 1 1V6H8V4.5a1 1 0 0 1 1-1Z" />
+      <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+      <path d="M9 12h6M9 16h4" />
+    </Icon>
+  );
+}
+
 export function IconUsers(props: IconProps) {
   return (
     <Icon {...props}>

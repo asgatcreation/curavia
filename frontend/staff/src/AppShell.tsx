@@ -32,6 +32,7 @@ import {
   IconCalendar,
   IconChart,
   IconChevron,
+  IconClipboard,
   IconDesk,
   IconDisplay,
   IconMoon,
@@ -74,6 +75,13 @@ const NAV: NavItem[] = [
     short: "Triage",
     icon: IconStethoscope,
     needs: "triage.vitals.record",
+  },
+  {
+    to: "/ward",
+    label: "Ward",
+    short: "Ward",
+    icon: IconClipboard,
+    needs: "nursing.task.view",
   },
   {
     to: "/consultation",

@@ -102,3 +102,6 @@ backend/apps/documents/views.py
 
 # Reads the audit log back, which is written outside any one hospital's scope.
 backend/tests/test_documents.py
+
+# Reads the audit log back, which is written outside any one hospital's scope.
+backend/tests/test_nursing.py

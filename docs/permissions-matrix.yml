@@ -314,6 +314,29 @@ permissions:
       Revoking does not delete. Somebody is holding a printed copy, so the
       row and its token stay and the public page reports it as withdrawn.
 
+  # --------------------------------------------------------- the ward's list
+  nursing.task.view:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, auditor]
+    note: >
+      Doctors read it without working it. "Has she had her antibiotic yet"
+      is a ward-round question, and a doctor who cannot see the answer asks
+      the nurse, which costs the nurse the time the list was meant to save.
+
+  nursing.task.manage:
+    allow: [owner, nurse, nurse_in_charge]
+    note: >
+      Completing a task puts a nurse's name against something done to a
+      patient. A doctor who wants it stopped cancels the order it came from.
+
+  nursing.handover.read:
+    allow: [owner, doctor, consultant, nurse, nurse_in_charge, auditor]
+
+  nursing.handover.write:
+    allow: [owner, nurse, nurse_in_charge]
+    note: >
+      Written by the nurse going off and accepted by the one coming on, both
+      in their own name. Neither half can be done for somebody else.
+
   # ------------------------------------------------------- triage and nursing
   triage.vitals.record:
     allow: [owner, doctor, consultant, nurse, nurse_in_charge]
