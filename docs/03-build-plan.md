@@ -80,13 +80,13 @@ Light and dark, at phone / tablet / desktop. The design language: calm premium c
 ### Milestone 4 — Onboarding and the hospital shell ✓ done
 Owner sign-up → email verification → **setup wizard** ("4 of 7") creating organisation, branches, departments, clinics, wards/beds, service prices, HMO tariffs — from editable templates (common departments, lab catalogue, essential drugs list, price list). Hospital size modes and module switches. Staff invitations and acceptance. **Role-based landing** — every role lands on its own dashboard. Branch switcher. **Excel/CSV import** with column mapping, preview and an error report. Group dashboard with live branch cards and drill-down.
 
-### Milestone 5 — Patients, appointments and the live journey ← **you are here**
+### Milestone 5 — Patients, appointments and the live journey ✓ done
 Registration (front desk and self-service) with **duplicate detection and merge**. MRN, patient card with QR, lifetime timeline. Emergency quick-registration. Trigram search. Booking (portal + front desk), doctor schedules and leave, walk-ins, token numbers, the **TV "now serving" screen**, SMS/email reminders, no-show tracking. The **live journey board over WebSockets** — this is the showpiece: every patient, every stage, every wait time, updating as it happens.
 
-### Milestone 6 — Triage, consultation and orders
+### Milestone 6 — Triage, consultation and orders ✓ done
 Vitals with BMI and **NEWS2 scoring with alerts**, nursing notes, nurse task lists, shift handover. SOAP notes with specialty templates (including dental chart, eye exam, physiotherapy), ICD coding, problem list, **sign and lock with versioned amendments**, e-signature and stamp. Orders of every type. Internal and external referrals. On-screen consent forms. Autosave drafts. Medical reports, sick notes, fitness certificates as QR-verifiable PDFs.
 
-### Milestone 7 — Lab, radiology, pharmacy, stores
+### Milestone 7 — Lab, radiology, pharmacy, stores ← **you are here**
 Lab: live orders, barcode sample labels, reference ranges by age and sex, abnormal and **critical flags with immediate alerts to the ordering doctor**, supervisor verification, send-outs, QC log, PDF results. Radiology: orders, scheduling, reports, private file uploads. Pharmacy: the **live prescription queue** with allergy, interaction, duplicate-therapy and dose checks, stock and price visible, substitution requests, partial dispensing, FEFO batch picking, labels, counselling notes, refills, controlled-drug register, OTC POS. Inventory: NAFDAC numbers, batches, expiry, suppliers, purchase orders, goods received, transfers, counts, wastage, valuation, alerts — all on the **stock ledger**.
 
 **This milestone contains the moment you described:** the doctor prescribes and the pharmacist's screen updates instantly, allergies and interactions and stock already checked.
