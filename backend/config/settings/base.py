@@ -108,6 +108,7 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.documents",
     "apps.nursing",
+    "apps.laboratory",
     "apps.platformadmin",
     "apps.marketing",
 ]
@@ -301,6 +302,12 @@ SPECTACULAR_SETTINGS = {
         "HandoverStatusEnum": "apps.nursing.models.HandoverStatus",
         "OrderKindEnum": "apps.orders.models.OrderKind",
         "ReferralKindEnum": "apps.orders.models.Referral.Kind",
+        # The laboratory catalogue: "sex" here is which patients a
+        # reference range applies to, not the patient's own sex field.
+        "SpecimenEnum": "apps.laboratory.models.Specimen",
+        "ValueTypeEnum": "apps.laboratory.models.ValueType",
+        "RangeSexEnum": "apps.laboratory.models.RangeSex",
+        "SexEnum": "apps.patients.models.Sex",
     },
 }
 

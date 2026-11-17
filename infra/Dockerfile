@@ -64,8 +64,14 @@ ENV PYTHONUNBUFFERED=1 \
     TZ=Africa/Lagos
 
 # libpq5 only — the runtime library, not the headers.
+#
+# The pango/harfbuzz libraries are what WeasyPrint renders PDFs with. The font
+# package is not optional with them: a slim image ships no fonts at all, and
+# WeasyPrint without a font produces a PDF of the right size containing no
+# visible text, which looks like a layout bug rather than a missing package.
 RUN apt-get update && apt-get install --no-install-recommends -y \
         libpq5 curl tzdata \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Never run as root: a container escape should not start as the host's

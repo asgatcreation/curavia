@@ -40,6 +40,7 @@ import { RegisterPatient } from "./screens/RegisterPatient";
 import { Reminders } from "./screens/Reminders";
 import { StaffAndRoles } from "./screens/StaffAndRoles";
 import { Triage } from "./screens/Triage";
+import { LabCatalogue } from "./screens/LabCatalogue";
 import { Ward } from "./screens/Ward";
 import { WaitingRoomDisplay } from "./screens/WaitingRoomDisplay";
 import { AcceptInvitation } from "./screens/auth/AcceptInvitation";
@@ -186,6 +187,7 @@ const SCREENS: Record<string, () => React.JSX.Element> = {
   "/consultation": Consultation,
   "/triage": Triage,
   "/ward": Ward,
+  "/lab-catalogue": LabCatalogue,
   "/pharmacy": Pharmacy,
   "/journey": JourneyBoard,
   "/group": GroupDashboard,
@@ -224,6 +226,11 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: "/triage", component: Triage }),
   createRoute({ getParentRoute: () => rootRoute, path: "/ward", component: Ward }),
   createRoute({ getParentRoute: () => rootRoute, path: "/consultation", component: Consultation }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/lab-catalogue",
+    component: LabCatalogue,
+  }),
   createRoute({ getParentRoute: () => rootRoute, path: "/pharmacy", component: Pharmacy }),
   createRoute({ getParentRoute: () => rootRoute, path: "/journey", component: JourneyBoard }),
   createRoute({ getParentRoute: () => rootRoute, path: "/group", component: GroupDashboard }),

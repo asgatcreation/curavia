@@ -91,6 +91,17 @@ Lab: live orders, barcode sample labels, reference ranges by age and sex, abnorm
 
 **This milestone contains the moment you described:** the doctor prescribes and the pharmacist's screen updates instantly, allergies and interactions and stock already checked.
 
+Built in six slices, each working end to end before the next one starts:
+
+* **7a — the lab test catalogue and reference ranges** ✓ done. What a test is made of, and what normal means for whom. Bands by sex and by age in days, critical thresholds both ways, and the two rules that make flagging unambiguous: no two bands for one sex may overlap, and a band for the patient's own sex beats a general one. Ships a starting catalogue for the thirteen laboratory tests the setup wizard already creates, which the hospital's own supervisor can then correct.
+* **7b — the lab worklist, samples and barcode labels.** Orders arriving live, collection, rejection and recollection, received and in progress.
+* **7c — results, flags, verification and the result report.** Results per analyte, flagged against 7a, critical results alerting the ordering doctor, supervisor verification before release, sign-and-lock, send-outs and the QC log.
+* **7d — radiology.** Orders, modality scheduling, reports with sign-and-lock, private file uploads behind signed URLs.
+* **7e — inventory and the stock ledger.** Before pharmacy dispensing, because dispensing moves stock and only one place may own the quantity.
+* **7f — the live prescription queue and the safety checks.** The showpiece.
+
+Server-rendered PDFs arrive with this milestone: WeasyPrint is now a dependency, and the GTK libraries it needs are installed in CI and in the production image.
+
 ### Milestone 8 — Billing and cashier
 Price lists per payer, automatic charges from orders / dispenses / bed-days, packages, patient wallet and part payments, Paystack, A4 and thermal receipts, refunds, waivers with approval, cashier shifts and end-of-day reconciliation. All PDFs QR-verifiable against a public verification page.
 

@@ -47,5 +47,8 @@ python-dotenv==1.2.4
 PyYAML==6.0.3
 qrcode==8.2
 
-# PDF rendering (WeasyPrint) is added at milestone 7. On Windows it needs the
-# GTK runtime, so it is deliberately not a dependency of the foundations.
+# PDF rendering. Needs Pango, cairo and gdk-pixbuf, which come from the GTK3
+# runtime: an apt package on the host, and already installed on the Windows
+# development machine. Reports and labels are rendered server-side so that a
+# result printed from a phone is the same document as one printed at the desk.
+weasyprint==70.0

@@ -33,6 +33,7 @@ import {
   IconChart,
   IconChevron,
   IconClipboard,
+  IconTube,
   IconDesk,
   IconDisplay,
   IconMoon,
@@ -89,6 +90,13 @@ const NAV: NavItem[] = [
     short: "Consult",
     icon: IconStethoscope,
     needs: "clinical.note.write",
+  },
+  {
+    to: "/lab-catalogue",
+    label: "Lab catalogue",
+    short: "Lab",
+    icon: IconTube,
+    needs: "lab.order.view",
   },
   {
     to: "/pharmacy",

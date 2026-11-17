@@ -28,6 +28,7 @@ from django.utils import timezone
 from apps.catalogue.models import Payer, Price, Service
 from apps.core.models import Bed, Branch, Department, Organisation
 from apps.core.setup_steps import mark_step
+from apps.laboratory import catalogue as lab_catalogue
 from apps.onboarding import templates_data as templates
 
 
@@ -330,9 +331,22 @@ def apply_services(organisation: Organisation, rows: list[dict[str, Any]]) -> St
         )
         priced += int(price_created)
 
+    # The laboratory's side of whichever laboratory tests were chosen: the
+    # analytes, the units and the reference ranges. Without this a hospital
+    # finishes setup with tests it can bill for and cannot report, and a
+    # supervisor types two hundred ranges in by hand before the first
+    # patient. Idempotent, so re-running this step adds panels for newly
+    # chosen tests and leaves edited ones alone.
+    seeded = lab_catalogue.ensure_panels(organisation)
+
     mark_step(organisation, "services")
     return StepResult(
-        created=created, updated=updated, detail=f"{created + updated} services, {priced} priced."
+        created=created,
+        updated=updated,
+        detail=(
+            f"{created + updated} services, {priced} priced."
+            + (f" Laboratory: {seeded.detail}" if seeded.panels else "")
+        ),
     )
 
 

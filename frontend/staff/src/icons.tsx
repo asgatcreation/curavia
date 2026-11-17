@@ -65,6 +65,15 @@ export function IconPill(props: IconProps) {
   );
 }
 
+export function IconTube(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 2h8M9.5 2v15a2.5 2.5 0 0 0 5 0V2" />
+      <path d="M9.5 11h5" />
+    </Icon>
+  );
+}
+
 export function IconBoard(props: IconProps) {
   return (
     <Icon {...props}>
