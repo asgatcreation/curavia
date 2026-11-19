@@ -277,6 +277,15 @@ def sign(*, encounter: Encounter, actor=None, override_reason: str = "") -> list
             ]
         )
 
+    # Departments find out here. The laboratory turns its own orders into
+    # requests on a worklist, which is what makes a signed order appear on a
+    # bench screen without anybody re-typing it. Imported late to keep the
+    # dependency one-way: the laboratory knows about orders, orders does not
+    # need to know about the laboratory until the moment of signing.
+    from apps.laboratory.worklist import open_requests_for
+
+    open_requests_for(drafts, actor=actor)
+
     logger.info("%s order(s) signed on encounter %s", len(drafts), encounter.pk)
     return drafts
 

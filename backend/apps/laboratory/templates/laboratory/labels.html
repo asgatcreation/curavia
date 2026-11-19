@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sample labels</title>
+<meta name="robots" content="noindex, nofollow">
+
+{% comment %}
+  One sticker per page, 50 x 25 mm, black on white.
+
+  Everything is in millimetres. A label is a physical object: it has to come
+  out of the printer at the size the roll is, and a barcode scaled by a
+  browser is a barcode that does not scan. There is no colour, because a
+  thermal printer has none, and no web font, because the printer may be on a
+  trolley with no network.
+
+  The layout is a four-row stack rather than a grid: accession and barcode,
+  the patient, the tube, and the time. A rack of tubes is read from above
+  with only the top of the label visible, so the accession number is first
+  and largest.
+{% endcomment %}
+
+<style>
+  @page {
+    size: {{ label_width_mm }}mm {{ label_height_mm }}mm;
+    margin: 0.8mm 1.8mm;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  body {
+    font: 400 6.4pt/1.15 "DejaVu Sans", Arial, Helvetica, sans-serif;
+    -webkit-font-smoothing: none;
+  }
+
+  .label {
+    width: 100%;
+    /* The page margin above, doubled: the printable height of one sticker.
+       Anything longer is clipped rather than allowed to flow onto the next
+       label, because on a thermal roll a label that spills ejects a blank
+       sticker and the roll runs out at half the labels. */
+    height: calc({{ label_height_mm }}mm - 1.6mm);
+    overflow: hidden;
+    page-break-after: always;
+  }
+  .label:last-child { page-break-after: auto; }
+
+  /* Row 1: the number, and the codes beside it. */
+  .top {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2mm;
+  }
+  .codes { flex: 1 1 auto; min-width: 0; }
+  .accession {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    margin-bottom: 0.3mm;
+  }
+  .barcode svg { display: block; width: auto; height: {{ bar_height_mm }}mm; }
+  .qr { flex: 0 0 {{ qr_size_mm }}mm; }
+  .qr svg { display: block; width: {{ qr_size_mm }}mm; height: {{ qr_size_mm }}mm; }
+
+  /* Row 2: the human being. The name is the check somebody makes by eye. */
+  .patient {
+    margin-top: 0.3mm;
+    padding-top: 0.2mm;
+    border-top: 0.2mm solid #000;
+  }
+  /* One line, as large as the sticker allows. A three-part Nigerian name
+     will not fit, and two lines of it would push the collection time off the
+     label, so a long name is cut with an ellipsis and the MRN directly
+     underneath is what identifies the patient without ambiguity. */
+  .name {
+    font-size: 7.6pt;
+    font-weight: 700;
+    line-height: 1.1;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* One line, never two. The MRN and the date of birth are a pair of short
+     facts, and letting them wrap costs a whole line of the sticker. */
+  .who {
+    display: flex;
+    justify-content: space-between;
+    gap: 1mm;
+    font-size: 5.8pt;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .who > span { overflow: hidden; text-overflow: ellipsis; }
+  .mrn { font-weight: 700; }
+
+  /* Row 3: what the tube is and what is being done with it.
+   *
+   * One line each, clipped rather than wrapped. A sticker has a fixed
+   * height: a tube description allowed to run to three lines pushes the
+   * collection time off the label, and the time is what decides whether the
+   * sample is too old to test. */
+  .tube {
+    margin-top: 0.3mm;
+    font-size: 6pt;
+  }
+  .tube-line {
+    display: block;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .specimen { font-weight: 700; }
+
+  /* Row 4: when it was drawn. A sample too old to test is a rejection, so
+     the time is on the sticker and not only in the system. */
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1mm;
+    margin-top: 0.2mm;
+    font-size: 5.6pt;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  /* The hospital name is the part that gives, not the time. */
+  .drawn { overflow: hidden; text-overflow: ellipsis; }
+  /* Boxed, but never taller than the line it sits on. */
+  .redraw {
+    font-weight: 700;
+    line-height: 1;
+    border: 0.15mm solid #000;
+    padding: 0 0.5mm;
+  }
+</style>
+</head>
+<body>
+{% for label in labels %}
+  <div class="label">
+    <div class="top">
+      <div class="codes">
+        <div class="accession">{{ label.accession }}</div>
+        <div class="barcode">{{ label.barcode.svg|safe }}</div>
+      </div>
+      <div class="qr">{{ label.qr|safe }}</div>
+    </div>
+
+    <div class="patient">
+      <span class="name">{{ label.patient_name }}</span>
+      <span class="who">
+        <span class="mrn">{{ label.mrn }}</span>
+        <span>
+          {% if label.date_of_birth %}{{ label.date_of_birth|date:"d/m/Y" }}{% endif %}
+          {% if label.age %}&middot; {{ label.age }}{% endif %}
+          {% if label.sex %}&middot; {{ label.sex|slice:":1" }}{% endif %}
+        </span>
+      </span>
+    </div>
+
+    <div class="tube">
+      <span class="tube-line"><span class="specimen">{{ label.specimen }}</span>{% if label.container %} &middot; {{ label.container }}{% endif %}</span>
+      <span class="tube-line">{{ label.panels }}</span>
+    </div>
+
+    <div class="foot">
+      <span class="drawn">{{ label.collected_at|date:"d/m/Y H:i" }}{% if hospital %} &middot; {{ hospital }}{% endif %}</span>
+      {% if label.is_recollection %}<span class="redraw">REPEAT</span>{% endif %}
+    </div>
+  </div>
+{% endfor %}
+</body>
+</html>

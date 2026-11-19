@@ -28,11 +28,16 @@ allowed to overlap one recorded as "any", because that is not ambiguous — it
 is the ordinary way a hospital sets a general range and then overrides it for
 women. Specificity decides, and ``ranges.range_for`` applies it.
 
-**Nothing here is patient data.** This is a hospital's reference data, edited
-by its laboratory supervisor and read by everyone. It is scoped to the
-organisation rather than the branch for the same reason services are: a full
-blood count must mean the same thing at every branch, or group reporting is
-meaningless.
+**The catalogue is not patient data.** ``LabPanel``, ``Analyte`` and
+``ReferenceRange`` are a hospital's reference data, edited by its laboratory
+supervisor and read by everyone. They are scoped to the organisation rather
+than the branch for the same reason services are: a full blood count must
+mean the same thing at every branch, or group reporting is meaningless.
+
+**The work is.** ``LabRequest`` and ``Sample``, lower down this file, are the
+other half: one test asked for on one patient, and one tube with blood in it.
+Those are branch-scoped, because a tube is a physical object standing in one
+fridge in one building.
 """
 
 from __future__ import annotations
@@ -40,11 +45,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.core.models import TenantScoped
+from apps.core.models import BranchScoped, TenantScoped
 
 #: Age bands are stored in days, so these exist to be read, not to be clever.
 DAYS_PER_YEAR = 365.25
@@ -480,3 +487,392 @@ def _age_label(days: int | None) -> str:
     # "11 years" for a band that starts on a twelfth birthday.
     whole = round(years) if abs(years - round(years)) < 0.02 else round(years, 1)
     return f"{whole:g} year{'s' if whole != 1 else ''}"
+
+
+# --------------------------------------------------------------------------
+# The work: what was asked for, and what was taken
+# --------------------------------------------------------------------------
+
+
+class AccessionCounter(models.Model):
+    """
+    The next accession number, per hospital per year.
+
+    The same shape as ``patients.MedicalRecordCounter`` and for the same
+    reasons: a row with a lock rather than a database sequence, so the
+    numbering restarts each January and so one hospital's count is not
+    inferable from another's.
+
+    Per **organisation**, not per branch. A tube collected at Ikeja can be
+    carried to the laboratory at Lekki, and two tubes in one rack must never
+    share a number whatever building they were drawn in.
+    """
+
+    organisation = models.ForeignKey(
+        "core.Organisation", on_delete=models.CASCADE, related_name="accession_counters"
+    )
+    year = models.PositiveSmallIntegerField()
+    last_number = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = _("accession counter")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "year"],
+                name="one_accession_counter_per_org_per_year",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.organisation_id} {self.year}: {self.last_number}"
+
+
+def next_accession_number(organisation_id, *, year: int | None = None) -> str:
+    """
+    Issue the next accession number: ``L26-000147``.
+
+    Short on purpose. This is printed as a Code 128 barcode on a sticker
+    25 mm tall, and it is also the thing a scientist reads aloud down the
+    phone to a ward. ``L``, two digits of the year, six of sequence: eleven
+    characters, which fits across a 50 mm label at a width a cheap handheld
+    scanner reads first time.
+
+    Takes a row lock, like an MRN does. Two nurses drawing blood in different
+    rooms at the same second must not be given the same number: everything
+    downstream - the label, the bench worksheet, the result - is keyed on it.
+    """
+    year = year or timezone.localdate().year
+    with transaction.atomic():
+        counter, _created = AccessionCounter.objects.select_for_update().get_or_create(
+            organisation_id=organisation_id, year=year
+        )
+        counter.last_number += 1
+        counter.save(update_fields=["last_number"])
+        return f"L{year % 100:02d}-{counter.last_number:06d}"
+
+
+class SampleStatus(models.TextChoices):
+    """
+    Where a tube is.
+
+    Three states, because a tube has only three honest ones: it has been
+    drawn, it has been booked in at the laboratory, or it was refused. What
+    happens on the bench after booking in belongs to the request, not to the
+    glass.
+    """
+
+    COLLECTED = "collected", _("Collected")
+    RECEIVED = "received", _("Received at the laboratory")
+    REJECTED = "rejected", _("Rejected")
+
+
+class RejectionReason(models.TextChoices):
+    """
+    Why a sample was refused.
+
+    A fixed list, and required. "Sample rejected" with no reason is the most
+    common cause of an argument between a ward and a laboratory, and it also
+    hides the thing the hospital most needs to see: that one ward's samples
+    keep clotting because the blood is being drawn through too fine a needle.
+    These are the reasons that appear on a real rejection log.
+    """
+
+    HAEMOLYSED = "haemolysed", _("Haemolysed")
+    CLOTTED = "clotted", _("Clotted")
+    INSUFFICIENT = "insufficient", _("Not enough sample")
+    WRONG_CONTAINER = "wrong_container", _("Wrong container")
+    UNLABELLED = "unlabelled", _("No label")
+    MISLABELLED = "mislabelled", _("Label does not match the request")
+    LEAKED = "leaked", _("Leaked or broken in transit")
+    TOO_OLD = "too_old", _("Too long since collection")
+    CONTAMINATED = "contaminated", _("Contaminated")
+    WRONG_PATIENT = "wrong_patient", _("Taken from the wrong patient")
+    OTHER = "other", _("Something else")
+
+
+#: Rejections that mean somebody has to be told now rather than at the end of
+#: the shift. A tube from the wrong patient is a patient-safety incident, not
+#: a redraw, and a mislabelled one is the same mistake caught a step earlier.
+SERIOUS_REJECTIONS = (RejectionReason.WRONG_PATIENT, RejectionReason.MISLABELLED)
+
+
+class Sample(BranchScoped):
+    """
+    One physical tube, pot or swab.
+
+    The row is created when the sample is **drawn**, not when the test is
+    ordered. A tube that does not exist yet has no accession number, because
+    the number is what is printed on the label, and a label printed before
+    the blood is taken is a label that ends up on the wrong tube. Curavia
+    follows the bedside rule: draw, then label, in front of the patient.
+
+    One tube can carry several tests. A full blood count and a packed cell
+    volume are both EDTA, so one purple tube serves both, and
+    ``service.plan_collection`` is what works that out from the specimen on
+    each panel.
+
+    ``panel_names`` is a snapshot. When a tube is rejected its requests move
+    on to a fresh tube, so without the snapshot a rejection log would show a
+    rejected sample that appears to have been for nothing.
+    """
+
+    accession = models.CharField(
+        max_length=20,
+        db_index=True,
+        help_text=_("The number on the label and in the barcode."),
+    )
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="lab_samples"
+    )
+
+    specimen = models.CharField(max_length=20, choices=Specimen, db_index=True)
+    #: What the tube is, in the words the catalogue used at the time: "Purple
+    #: top (EDTA), 4 mL". Snapshotted so a label reprinted next year still
+    #: describes the tube that was actually drawn.
+    container = models.CharField(max_length=120, blank=True)
+    #: "FBC, PCV" - see the class docstring.
+    panel_names = models.CharField(max_length=300, blank=True)
+
+    status = models.CharField(
+        max_length=12, choices=SampleStatus, default=SampleStatus.COLLECTED, db_index=True
+    )
+
+    collected_at = models.DateTimeField(db_index=True)
+    collected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    collection_note = models.CharField(
+        max_length=300, blank=True, help_text=_("Anything the laboratory should know.")
+    )
+
+    received_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    rejection_reason = models.CharField(max_length=20, choices=RejectionReason, blank=True)
+    rejection_note = models.CharField(max_length=300, blank=True)
+
+    #: The tube this one replaces. Set on the redraw, so the chain reads
+    #: forwards from the rejection and a third attempt is visible as a third
+    #: attempt.
+    recollection_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recollections",
+    )
+
+    #: When a label was last produced. A reprint is ordinary - labels tear,
+    #: printers jam - but a tube whose label has been printed nine times is
+    #: worth a supervisor's attention.
+    label_printed_at = models.DateTimeField(null=True, blank=True)
+    label_print_count = models.PositiveSmallIntegerField(default=0)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("sample")
+        ordering = ("-collected_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organisation", "accession"], name="unique_accession_per_organisation"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["organisation", "branch", "status"]),
+            models.Index(fields=["organisation", "patient", "-collected_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.accession} ({self.get_specimen_display()})"
+
+    @property
+    def is_rejected(self) -> bool:
+        return self.status == SampleStatus.REJECTED
+
+    @property
+    def is_serious_rejection(self) -> bool:
+        """Whether this rejection is a patient-safety matter. See the list."""
+        return self.is_rejected and self.rejection_reason in SERIOUS_REJECTIONS
+
+    def rejection_label(self) -> str:
+        """Clotted, and the sentence beside it, for the log and the ward."""
+        if not self.is_rejected:
+            return ""
+        reason = str(self.get_rejection_reason_display())
+        return f"{reason} - {self.rejection_note}" if self.rejection_note else reason
+
+    def minutes_in_transit(self) -> int | None:
+        """How long between the needle and the bench. Empty until received."""
+        if self.received_at is None:
+            return None
+        return int((self.received_at - self.collected_at).total_seconds() // 60)
+
+    def clean(self) -> None:
+        super().clean()
+        errors: dict[str, Any] = {}
+        if self.status == SampleStatus.REJECTED and not self.rejection_reason:
+            errors["rejection_reason"] = _("Say why the sample was rejected.")
+        if self.rejection_reason == RejectionReason.OTHER and not self.rejection_note.strip():
+            errors["rejection_note"] = _("Something else needs a sentence saying what.")
+        if self.recollection_of_id and self.recollection_of_id == self.pk:
+            errors["recollection_of"] = _("A sample cannot replace itself.")
+        if errors:
+            raise ValidationError(errors)
+
+
+class RequestStatus(models.TextChoices):
+    """
+    Where one test has got to.
+
+    Longer than ``SampleStatus`` because this is the thing a ward rings up
+    about. ``AWAITING_COLLECTION`` is where a test sits both before its first
+    tube and after a tube was rejected: from the nurse's point of view those
+    are the same job, and giving them two names would mean two queues to
+    watch. The difference is still visible - the request counts its
+    rejections, and the worklist says so.
+
+    Results, verification and release are added in 7c.
+    """
+
+    AWAITING_COLLECTION = "awaiting", _("Waiting for the sample")
+    COLLECTED = "collected", _("Sample taken")
+    RECEIVED = "received", _("At the laboratory")
+    IN_PROGRESS = "in_progress", _("Being done")
+    CANCELLED = "cancelled", _("Cancelled")
+
+
+#: Statuses in which a test is still somebody's live job.
+OPEN_REQUEST_STATUSES = (
+    RequestStatus.AWAITING_COLLECTION,
+    RequestStatus.COLLECTED,
+    RequestStatus.RECEIVED,
+    RequestStatus.IN_PROGRESS,
+)
+
+
+class LabRequest(BranchScoped):
+    """
+    One laboratory test asked for on one patient.
+
+    Created automatically when the doctor signs the order basket, so the
+    laboratory sees work arrive without anybody re-typing it. One per
+    laboratory order, which is why ``order`` is a one-to-one: the order is
+    what the doctor sees and what the cashier charges for, and this is the
+    same thing seen from the bench.
+
+    ``specimen`` and ``container`` are copied from the panel at the moment of
+    ordering rather than read through it. A supervisor correcting the
+    catalogue on Tuesday must not silently change what tube Monday's
+    outstanding request is waiting for.
+    """
+
+    order = models.OneToOneField(
+        "orders.Order", on_delete=models.CASCADE, related_name="lab_request"
+    )
+    patient = models.ForeignKey(
+        "patients.Patient", on_delete=models.PROTECT, related_name="lab_requests"
+    )
+    encounter = models.ForeignKey(
+        "journey.Encounter",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lab_requests",
+    )
+    panel = models.ForeignKey(LabPanel, on_delete=models.PROTECT, related_name="requests")
+
+    #: Snapshots. See the class docstring.
+    specimen = models.CharField(max_length=20, choices=Specimen, db_index=True)
+    container = models.CharField(max_length=120, blank=True)
+    priority = models.CharField(max_length=10, db_index=True)
+
+    status = models.CharField(
+        max_length=12,
+        choices=RequestStatus,
+        default=RequestStatus.AWAITING_COLLECTION,
+        db_index=True,
+    )
+    sample = models.ForeignKey(
+        Sample,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="requests",
+        help_text=_("The tube this is currently on. Empty while it waits for one."),
+    )
+
+    requested_at = models.DateTimeField(db_index=True)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: When the ward was promised a result: the moment of ordering plus the
+    #: panel's turnaround. Stored rather than computed, because the promise
+    #: was made against the turnaround as it stood that day.
+    due_at = models.DateTimeField(db_index=True)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=300, blank=True)
+
+    #: How many tubes have been rejected for this test. Read off the worklist
+    #: so a nurse drawing the third one knows it is the third one.
+    rejection_count = models.PositiveSmallIntegerField(default=0)
+
+    class Meta(BranchScoped.Meta):
+        verbose_name = _("laboratory request")
+        ordering = ("due_at",)
+        indexes = [
+            models.Index(fields=["organisation", "branch", "status"]),
+            models.Index(fields=["organisation", "branch", "status", "due_at"]),
+            models.Index(fields=["organisation", "patient", "-requested_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.panel.code} for {self.patient_id}"
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in OPEN_REQUEST_STATUSES
+
+    @property
+    def needs_collection(self) -> bool:
+        return self.status == RequestStatus.AWAITING_COLLECTION
+
+    def is_overdue(self, *, now=None) -> bool:
+        """
+        Past the time the ward was promised, and not finished.
+
+        A cancelled request is never overdue, and neither is one the
+        laboratory has already finished with - being late is only meaningful
+        while somebody is still waiting.
+        """
+        if not self.is_open:
+            return False
+        return (now or timezone.now()) > self.due_at
+
+    def minutes_late(self, *, now=None) -> int:
+        """Zero when it is not late, so the screen can print it unguarded."""
+        if not self.is_overdue(now=now):
+            return 0
+        return int(((now or timezone.now()) - self.due_at).total_seconds() // 60)

@@ -25,12 +25,6 @@ export interface PlannedScreen {
  * which is why the fallback below names the path.
  */
 export const PLANNED: Record<string, PlannedScreen> = {
-  "/laboratory": {
-    title: "Laboratory",
-    blurb:
-      "Live orders, barcode sample labels, reference ranges by age and sex, critical flags that alert the ordering doctor, and supervisor verification.",
-    milestone: "milestone 7",
-  },
   "/radiology": {
     title: "Radiology",
     blurb: "Imaging orders, scheduling, reports and private file uploads.",

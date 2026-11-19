@@ -197,6 +197,35 @@ export class ApiClient {
     return this.request<T>(path, { method: "DELETE" });
   }
 
+  /**
+   * Fetch a file rather than JSON - a PDF label, a result report.
+   *
+   * Its own method because `request` parses the body as JSON, and because a
+   * file cannot simply be opened as a link: these endpoints are behind the
+   * bearer token, which a plain browser navigation does not carry. The
+   * caller turns the blob into an object URL and is responsible for
+   * revoking it.
+   *
+   * No refresh-and-retry. A 401 here means the token expired between the
+   * screen loading and somebody pressing Print, and the honest result is an
+   * error the screen can show rather than a silent second attempt that
+   * downloads a file nobody is now waiting for.
+   */
+  async blob(path: string, accept = "application/pdf"): Promise<Blob> {
+    const headers = new Headers({ Accept: accept });
+    if (this.accessToken) headers.set("Authorization", `Bearer ${this.accessToken}`);
+    if (this.organisationId) headers.set("X-Curavia-Organisation", this.organisationId);
+    if (this.branchId) headers.set("X-Curavia-Branch", this.branchId);
+
+    const response = await fetch(`${this.baseUrl}${path}`, { headers, credentials: "include" });
+    if (!response.ok) {
+      throw new ApiRequestError(response.status, {
+        detail: "That file could not be produced. Try again.",
+      });
+    }
+    return response.blob();
+  }
+
   /** The boot call: one request for identity, scope, permissions and modules. */
   me(): Promise<Me> {
     return this.get<Me>("/me/");

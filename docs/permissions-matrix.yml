@@ -347,10 +347,34 @@ permissions:
   # ------------------------------------------------------------------- lab
   lab.order.view:
     allow:
-      [owner, doctor, consultant, lab_scientist, lab_supervisor, auditor]
+      [
+        owner,
+        doctor,
+        consultant,
+        nurse,
+        nurse_in_charge,
+        lab_scientist,
+        lab_supervisor,
+        auditor,
+      ]
+    note: >
+      Nurses are here because of the collection list. A nurse who may draw
+      blood has to be able to see which tests were ordered and what tube each
+      one needs - that list IS the laboratory orders, seen from the ward. A
+      role that could collect but not read would be a role holding a needle
+      with nothing to read off.
 
   lab.sample.collect:
     allow: [owner, nurse, nurse_in_charge, lab_scientist, lab_supervisor]
+
+  lab.sample.receive:
+    allow: [owner, lab_scientist, lab_supervisor]
+    note: >
+      Booking a tube in and refusing one are the same act seen two ways, and
+      both belong to the laboratory rather than to the ward that drew the
+      blood. A nurse may collect and label a sample; only the laboratory may
+      say it has arrived, or that it is unusable. Separating this from
+      lab.sample.collect is what stops a ward closing its own loop.
 
   lab.result.enter:
     allow: [owner, lab_scientist, lab_supervisor]

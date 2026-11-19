@@ -52,3 +52,9 @@ qrcode==8.2
 # development machine. Reports and labels are rendered server-side so that a
 # result printed from a phone is the same document as one printed at the desk.
 weasyprint==70.0
+
+# Code 128 barcodes on sample labels, written straight out as SVG. Pure
+# Python with no system libraries: the handheld laser scanners a Nigerian
+# laboratory already owns read 1D barcodes, not QR, so an accession number
+# has to be printed as bars and not only as a square.
+python-barcode==0.16.1

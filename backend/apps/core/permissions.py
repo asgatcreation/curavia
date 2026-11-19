@@ -113,6 +113,7 @@ PERMISSIONS: tuple[Permission, ...] = (
     # -- laboratory ---------------------------------------------------------
     _p("lab.order.view", "See lab orders", "lab"),
     _p("lab.sample.collect", "Collect and label samples", "lab"),
+    _p("lab.sample.receive", "Book samples in and reject them", "lab"),
     _p("lab.result.enter", "Enter results", "lab"),
     _p("lab.result.verify", "Verify results as a supervisor", "lab", sensitive=True),
     _p("lab.catalogue.manage", "Edit the test catalogue and reference ranges", "lab"),

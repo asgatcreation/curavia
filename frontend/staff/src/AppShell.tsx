@@ -92,10 +92,17 @@ const NAV: NavItem[] = [
     needs: "clinical.note.write",
   },
   {
-    to: "/lab-catalogue",
-    label: "Lab catalogue",
+    to: "/laboratory",
+    label: "Laboratory",
     short: "Lab",
     icon: IconTube,
+    needs: "lab.order.view",
+  },
+  {
+    to: "/lab-catalogue",
+    label: "Lab catalogue",
+    short: "Tests",
+    icon: IconClipboard,
     needs: "lab.order.view",
   },
   {

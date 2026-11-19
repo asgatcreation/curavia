@@ -6,10 +6,12 @@ from django.urls import path
 
 from apps.core.ws import NotificationConsumer
 from apps.journey.consumers import DisplayConsumer, JourneyConsumer
+from apps.laboratory.consumers import WorklistConsumer
 
 websocket_urlpatterns = [
     path("ws/notifications/", NotificationConsumer.as_asgi(), name="ws-notifications"),
     path("ws/journey/", JourneyConsumer.as_asgi(), name="ws-journey"),
+    path("ws/lab/", WorklistConsumer.as_asgi(), name="ws-lab"),
     # The television. Its token is in the path rather than a query string so
     # it is not stripped by anything that rewrites query parameters, and
     # because the URL is typed in once and then left alone for years.

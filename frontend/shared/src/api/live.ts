@@ -174,3 +174,19 @@ export function connectDisplay(token: string, options: LiveOptions): LiveConnect
   void connection.open();
   return connection;
 }
+
+/**
+ * The laboratory worklist's socket.
+ *
+ * Carries no data of its own: the server sends `{type: "changed", reason}`
+ * and the screen re-reads `/lab/worklist/`. See the consumer for why a nudge
+ * is right here and a delta is not.
+ */
+export function connectLabWorklist(client: ApiClient, options: LiveOptions): LiveConnection {
+  const connection = new LiveConnection("/ws/lab/", options, async () => {
+    const { ticket } = await client.post<{ ticket: string }>("/ws/ticket/", {});
+    return ticket;
+  });
+  void connection.open();
+  return connection;
+}

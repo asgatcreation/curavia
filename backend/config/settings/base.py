@@ -308,6 +308,11 @@ SPECTACULAR_SETTINGS = {
         "ValueTypeEnum": "apps.laboratory.models.ValueType",
         "RangeSexEnum": "apps.laboratory.models.RangeSex",
         "SexEnum": "apps.patients.models.Sex",
+        # The worklist. RejectionReason appears both on a sample and in the
+        # body of the reject endpoint, which is one choice set read twice.
+        "RejectionReasonEnum": "apps.laboratory.models.RejectionReason",
+        "SampleStatusEnum": "apps.laboratory.models.SampleStatus",
+        "RequestStatusEnum": "apps.laboratory.models.RequestStatus",
     },
 }
 
