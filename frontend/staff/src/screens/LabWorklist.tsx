@@ -402,23 +402,34 @@ function CollectionRow({
   onDone: () => void;
   onError: (message: string) => void;
 }) {
-  const [tubes, setTubes] = useState<Tube[] | null>(null);
+  // The answer is stored with the patient it is about, rather than cleared
+  // and refilled. Two people are opened one after the other on a slow phone
+  // and the first reply can land second; tying the tubes to a patient means
+  // a late answer for somebody else is ignored instead of being drawn under
+  // the wrong name.
+  const [loaded, setLoaded] = useState<{ patient: string; tubes: Tube[] } | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const first = rows[0];
+  const patientId = first?.patient ?? "";
+
+  // Every hook before the early return below: React matches hooks up by the
+  // order they are called in, so a render that skipped one would shift the
+  // state of every hook after it.
+  useEffect(() => {
+    if (!open || !patientId) return;
+    void lab
+      .tubesFor(patientId)
+      .then((rows_) => setLoaded({ patient: patientId, tubes: rows_ }))
+      .catch(() => setLoaded({ patient: patientId, tubes: [] }));
+  }, [open, patientId]);
+
   if (!first) return null;
+
+  const tubes = loaded && loaded.patient === patientId ? loaded.tubes : null;
 
   const redraws = rows.filter((row) => row.rejection_count > 0);
   const late = rows.filter((row) => row.overdue);
-
-  useEffect(() => {
-    if (!open) return;
-    setTubes(null);
-    void lab
-      .tubesFor(first.patient)
-      .then(setTubes)
-      .catch(() => setTubes([]));
-  }, [open, first.patient]);
 
   const collect = () => {
     setBusy(true);
